@@ -9,6 +9,7 @@ import Scanner from "./pages/Scanner";
 import ThreatModel from "./pages/ThreatModel";
 import AuditLog from "./pages/AuditLog";
 import SettingsPage from "./pages/Settings";
+import TamperProofRecords from "./pages/TamperProofRecords";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/scanner" element={<Scanner />} />
             <Route path="/threats" element={<ThreatModel />} />
             <Route path="/audit-log" element={<AuditLog />} />
+            <Route path="/records" element={<TamperProofRecords />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

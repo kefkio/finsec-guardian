@@ -19,6 +19,7 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/scanner", icon: Search, label: "Contract Scanner" },
   { to: "/threats", icon: AlertTriangle, label: "Threat Model" },
+  { to: "/records", icon: Link2, label: "Tamper-Proof Records" },
   { to: "/audit-log", icon: ScrollText, label: "Audit Log" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
