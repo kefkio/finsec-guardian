@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Settings,
   ChevronLeft,
+  Link2,
   ChevronRight,
   Hexagon,
 } from "lucide-react";
