@@ -1,104 +1,113 @@
 # FinSec Guardian
 
-FinSec Guardian is a frontend security workstation prototype for Solidity contract analysis and DeFi risk operations.
+FinSec Guardian is a smart contract security operations console — a React frontend backed by a Django REST Framework API for Solidity contract analysis and DeFi risk operations.
 
-It currently provides a complete analyst UI with:
-- Contract scan workflow and findings panel
-- Threat model visualization
-- Audit log timeline
-- Tamper-evident record chain simulation
-- Security settings dashboard
+## Architecture
 
-Important: the scanner logic is currently mock/demo logic in the UI, not a real Solidity static analysis engine yet.
+```
+finsec-guardian/          ← React + Vite frontend (this repo)
+finsec-guardian-api/      ← Django REST Framework backend (separate repo)
+```
 
-## What This Project Is
+The frontend communicates with the DRF backend over a REST API. All data (scan jobs, findings, threat records, audit events, tamper-proof records) is persisted in PostgreSQL via the backend.
 
-- A React + JavaScript + Vite application
-- A cybersecurity-focused dashboard experience for smart contract security operations
-- A foundation to plug in real analysis backends (Slither/Mythril/Semgrep/custom rules)
-
-## Current Feature Set
+## Feature Set
 
 ### 1) Contract Scanner
-- Paste Solidity source code in an editor panel
-- Trigger a scan workflow with progress state
-- View categorized findings (critical/high/medium/low/info)
-- Read recommendations per finding with SWC-style IDs
+- Paste Solidity source code and submit to the backend scan API
+- Progress indicator while scan is processing
+- View categorized findings (critical/high/medium/low/info) with SWC IDs, line numbers, and remediation guidance
 
-Current behavior:
-- Scanner results are mock findings defined in the frontend
-- No compiler parsing, AST pass, symbolic execution, or bytecode analysis yet
+> Scanner results currently come from the backend placeholder logic. Real static analysis (Slither/Mythril) is the next integration milestone.
 
 ### 2) Security Dashboard
-- High-level KPI cards (contracts scanned, critical vulns, active threats, risk score)
+- KPI cards: contracts scanned, critical vulnerabilities, active threats, risk score
 - Scan activity chart and vulnerability distribution chart
-- Recent scans list
-
-Current behavior:
-- Dashboard data is static demo data
+- Live recent scans list pulled from the API
 
 ### 3) Threat Model
-- STRIDE-oriented threat cards
-- Likelihood/impact scoring and derived risk score
-- Mitigation recommendations by threat type
-
-Current behavior:
-- Threat records are static demo scenarios
+- STRIDE-oriented threat cards with likelihood/impact scoring
+- Derived risk score per threat
+- Mitigation recommendations — live data from the API (create/update/delete threats)
 
 ### 4) Audit Log
-- Searchable event stream UI
-- Severity-tagged timeline entries with actor/resource/IP context
-
-Current behavior:
-- Entries are static demo events
+- Searchable, severity-tagged security event timeline
+- Actor, resource, and IP context per event
+- Live data from the API audit log endpoint
 
 ### 5) Tamper-Proof Records
-- Client-side hash chain simulation (SHA-256 via browser crypto API)
-- Add records, verify chain integrity, and simulate tampering
-- Display simulated Solidity contract for anchoring concept
-
-Current behavior:
-- No wallet connection, no deployed contract, no on-chain writes yet
+- SHA-256 hash chain — records are stored and hashed server-side
+- Add records and verify chain integrity via the API
+- Displays a simulated Solidity contract for on-chain anchoring concept
 
 ## Tech Stack
 
-- React 18
-- JavaScript (JSX)
+### Frontend
+- React 18 + JavaScript (JSX)
 - Vite 5
-- Tailwind CSS
-- shadcn/ui + Radix UI
+- TanStack Query v5 (server state, caching, loading/error states)
+- Tailwind CSS + shadcn/ui + Radix UI
 - Recharts (visualizations)
 - React Router
-- TanStack Query (available in app setup)
-- Vitest + Testing Library
-- Playwright (configured)
+
+### Backend (`finsec-guardian-api/`)
+- Django 5 + Django REST Framework
+- PostgreSQL
+- `django-cors-headers`, `python-decouple`
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET/POST` | `/api/scanner/scans/` | List scans / submit new scan |
+| `GET` | `/api/scanner/scans/{id}/findings/` | Findings for a specific scan |
+| `GET/POST/PATCH` | `/api/threats/threats/` | STRIDE threat records |
+| `GET/POST` | `/api/audit/events/` | Audit log (append-only) |
+| `GET/POST` | `/api/records/records/` | Tamper-proof hash chain records |
+| `GET` | `/api/records/records/verify/` | Verify full chain integrity |
 
 ## Project Structure
 
-- src/pages/Scanner.jsx: scanner flow and findings UI (mock analysis)
-- src/pages/Dashboard.jsx: security metrics and charts
-- src/pages/ThreatModel.jsx: threat catalog and risk modeling view
-- src/pages/AuditLog.jsx: security event timeline
-- src/pages/TamperProofRecords.jsx: hash-chain simulation and verification
-- src/pages/Settings.jsx: security and scanner settings UI
-- src/components/AppLayout.jsx: sidebar + routed layout shell
+```
+src/
+├── lib/
+│   ├── api.js              ← API service layer (all fetch calls)
+│   └── utils.js
+├── pages/
+│   ├── Scanner.jsx         ← useMutation → POST /api/scanner/scans/
+│   ├── Dashboard.jsx       ← useQuery → GET /api/scanner/scans/
+│   ├── ThreatModel.jsx     ← useQuery/useMutation → /api/threats/
+│   ├── AuditLog.jsx        ← useQuery → GET /api/audit/events/
+│   ├── TamperProofRecords.jsx ← useQuery/useMutation → /api/records/
+│   └── Settings.jsx
+└── components/
+    ├── AppLayout.jsx
+    └── ui/                 ← shadcn/ui components
+```
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+ (Node.js 20+ recommended)
-- npm
+- Node.js 18+
+- The `finsec-guardian-api` backend running on port 8000 (see its README)
 
-### Install
+### Install & Configure
 
 ```bash
 npm install
+```
+
+Copy and edit the environment file:
+```bash
+cp .env.example .env
+# Set VITE_API_URL=http://localhost:8000/api
 ```
 
 ### Run Development Server
 
 ```bash
 npm run dev
+# Runs on http://localhost:8080
 ```
 
 ### Build for Production
@@ -107,69 +116,45 @@ npm run dev
 npm run build
 ```
 
-### Preview Production Build
-
-```bash
-npm run preview
-```
-
-### Lint
-
-```bash
-npm run lint
-```
-
-### Unit/Component Tests
+### Run Tests
 
 ```bash
 npm run test
-```
-
-### Watch Tests
-
-```bash
 npm run test:watch
 ```
 
-## Security Scanner Scope (Planned)
+## Backend Setup (Quick Reference)
 
-The intended scanner scope includes:
-- SWC-aligned rule detection
-- Reentrancy, access control, arithmetic safety, DoS patterns
-- Compiler/version hygiene checks
-- Severity scoring and remediation guidance
-- JSON report export and CI integration
-
-Suggested implementation path:
-1. Add a backend analysis service (Node/Python)
-2. Integrate Slither or Mythril for first-pass findings
-3. Normalize findings to a shared schema
-4. Replace mock findings in the scanner page with API responses
-5. Persist scan history and audit events
+```bash
+cd ../finsec-guardian-api
+cp .env.example .env          # fill in DB credentials
+createdb finsec_guardian
+venv/bin/python manage.py migrate
+venv/bin/python manage.py runserver
+# API available at http://localhost:8000/api/
+```
 
 ## Known Limitations
 
-- No real static analysis pipeline yet
-- No file upload parser or multi-contract project support
-- No authentication backend
-- No persistent storage/database
-- No blockchain RPC, wallet, or contract deployment integration
-- Most pages currently use in-memory/static data
+- No real Solidity static analysis engine yet (scanner stores submissions, returns empty findings until integrated)
+- No authentication — API is open (JWT auth is the next planned milestone)
+- No file upload / multi-contract project support
+- No blockchain RPC, wallet, or on-chain contract deployment
+- Dashboard aggregate stats (KPI cards, charts) are still static placeholders
 
-## Recommended Next Milestones
+## Roadmap
 
-1. Build a real scanner API and connect the scanner UI
-2. Add finding suppression/baselines and report export
-3. Add user auth + RBAC + persistent audit storage
+1. Integrate Slither/Mythril for real static analysis in the scanner backend
+2. Add JWT authentication + RBAC
+3. Add finding suppression, baselines, and JSON report export
 4. Add on-chain anchoring for tamper-proof records
-5. Add CI mode for repository-based contract scans
+5. CI mode for repository-based contract scans
 
 ## Vision
 
 FinSec Guardian is positioned as a unified smart contract security operations console:
-- Analyze Solidity contracts
+- Analyze Solidity contracts with real static analysis
 - Track threat posture over time
-- Preserve tamper-evident security events
+- Preserve tamper-evident, API-backed security events
 - Support audit and compliance workflows
 
-This repository currently delivers the interface foundation and interaction model needed to evolve into that full platform.
