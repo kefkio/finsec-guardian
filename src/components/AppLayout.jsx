@@ -100,13 +100,48 @@ const AppLayout = ({
           })
         })
       })]
-    }), /*#__PURE__*/_jsx("main", {
-      className: cn("flex-1 transition-all duration-300", collapsed ? "ml-16" : "ml-60"),
-      children: /*#__PURE__*/_jsx("div", {
-        className: "p-6",
-        children: children
-      })
-    })]
-  });
+
+    }),
+    /*#__PURE__*/_jsx("main", {
+      className: cn("flex-1 transition-all duration-300 bg-muted/40", collapsed ? "ml-16" : "ml-60"),
+      children: (
+        <div className="p-6 space-y-6">
+          {/* Command Center Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Command Center</h1>
+            <span className="text-xs text-muted-foreground">All systems operational</span>
+          </div>
+          {/* Command Center Widgets Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {/* Example Stat Widget */}
+            <div className="rounded-lg bg-background shadow p-4 flex flex-col gap-2 border border-border">
+              <span className="text-xs text-muted-foreground">Active Threats</span>
+              <span className="text-2xl font-semibold text-destructive">2</span>
+              <span className="text-xs text-muted-foreground">Last 24h</span>
+            </div>
+            <div className="rounded-lg bg-background shadow p-4 flex flex-col gap-2 border border-border">
+              <span className="text-xs text-muted-foreground">Contracts Scanned</span>
+              <span className="text-2xl font-semibold text-primary">14</span>
+              <span className="text-xs text-muted-foreground">This week</span>
+            </div>
+            <div className="rounded-lg bg-background shadow p-4 flex flex-col gap-2 border border-border">
+              <span className="text-xs text-muted-foreground">Audit Logs</span>
+              <span className="text-2xl font-semibold text-accent">128</span>
+              <span className="text-xs text-muted-foreground">Total</span>
+            </div>
+            <div className="rounded-lg bg-background shadow p-4 flex flex-col gap-2 border border-border">
+              <span className="text-xs text-muted-foreground">Tamper-Proof Records</span>
+              <span className="text-2xl font-semibold text-green-600">99%</span>
+              <span className="text-xs text-muted-foreground">Integrity</span>
+            </div>
+          </div>
+          {/* Main Content Area */}
+          <div className="mt-8">
+            {children}
+          </div>
+        </div>
+      )
+    })
+  ]});
 };
 export default AppLayout;
