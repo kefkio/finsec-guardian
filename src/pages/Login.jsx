@@ -1,12 +1,81 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Shield, X, ExternalLink, ChevronRight, Zap, BarChart3, FileSearch, Bug, FlaskConical, BookOpen, Menu } from "lucide-react";
+import {
+  Shield, X, ExternalLink, ChevronRight, Zap, BarChart3, FileSearch,
+  Bug, FlaskConical, BookOpen, Menu, Github, Bell, GitBranch,
+  TrendingUp, Sparkles, Lock, Eye, Code2, ArrowRight, CheckCircle2
+} from "lucide-react";
 import { authApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+
+/* ── Slack SVG icon (no lucide equivalent) ──────────────────────────── */
+const SlackIcon = ({ className }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
+  </svg>
+);
+
+const INTEGRATION_STEPS = [
+  {
+    icon: Github,
+    color: "text-foreground",
+    bg: "bg-muted",
+    title: "Connect GitHub Repositories",
+    description: "Seamlessly link any public or private GitHub repo. DeFiGuard watches every push, PR, and release automatically.",
+    badge: "GitHub",
+  },
+  {
+    icon: SlackIcon,
+    color: "text-[#4A154B]",
+    bg: "bg-[#4A154B]/10",
+    title: "Real-Time Slack Alerts",
+    description: "Pipe critical vulnerability findings straight to your team's Slack workspace the moment a scan completes.",
+    badge: "Slack",
+  },
+  {
+    icon: GitBranch,
+    color: "text-cyan-500",
+    bg: "bg-cyan-500/10",
+    title: "Automated Scan Triggers",
+    description: "Configure branch-level triggers — scan on push, on PR open, or on a schedule. Zero manual intervention required.",
+    badge: "CI/CD",
+  },
+  {
+    icon: TrendingUp,
+    color: "text-emerald-500",
+    bg: "bg-emerald-500/10",
+    title: "Code Quality Trend Monitoring",
+    description: "Track vulnerability counts, severity trends, and fix velocity across every release. Spot regressions before they ship.",
+    badge: "Analytics",
+  },
+  {
+    icon: Sparkles,
+    color: "text-violet-500",
+    bg: "bg-violet-500/10",
+    title: "AI-Powered Insights",
+    description: "Our AI engine correlates findings with historical data to surface root causes and suggest targeted refactors.",
+    badge: "AI",
+  },
+  {
+    icon: Eye,
+    color: "text-amber-500",
+    bg: "bg-amber-500/10",
+    title: "Unparalleled Codebase Visibility",
+    description: "Dependency graphs, hot-spot heatmaps, and cross-contract call analysis give you the full picture every time.",
+    badge: "Insights",
+  },
+];
+
+const TRUST_BADGES = [
+  { label: "Slither-powered analysis" },
+  { label: "OWASP SC Top 10 aligned" },
+  { label: "GitHub & Slack native" },
+  { label: "SOC 2-ready audit logs" },
+];
 
 const NAV_ITEMS = [
   { label: "QuickScan",     href: "#quickscan",  icon: Zap },
@@ -182,7 +251,7 @@ const Login = () => {
         </div>
 
         {/* Auth Card */}
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm" id="auth-card">
           <Card className="border-border bg-card shadow-lg">
             <CardHeader className="pb-3">
               <div className="flex gap-1 rounded-md bg-muted p-1 font-mono text-xs">
@@ -282,6 +351,89 @@ const Login = () => {
           </p>
         </div>
       </main>
+
+      {/* ── Integrations & Features Section ─────────────────────────── */}
+      <section className="w-full bg-muted/30 border-y border-border py-20 px-4">
+        <div className="mx-auto max-w-6xl space-y-14">
+
+          {/* Section heading */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-mono text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+              Integrations &amp; Intelligence
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+              Your entire security workflow,<br />
+              <span className="text-gradient-primary">fully automated.</span>
+            </h2>
+            <p className="text-muted-foreground text-base max-w-xl mx-auto">
+              Connect GitHub and Slack in seconds. Configure scan triggers, track quality
+              trends with AI, and gain unparalleled codebase insights — all in one platform.
+            </p>
+          </div>
+
+          {/* Feature cards grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {INTEGRATION_STEPS.map(({ icon: Icon, color, bg, title, description, badge }) => (
+              <div
+                key={title}
+                className="group relative rounded-xl border border-border bg-background p-6 space-y-4 hover:border-primary/40 hover:shadow-md transition-all duration-200"
+              >
+                <div className="flex items-start justify-between">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${bg}`}>
+                    <Icon className={`h-5 w-5 ${color}`} />
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground border border-border rounded-full px-2 py-0.5">
+                    {badge}
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+                </div>
+                <div className="flex items-center gap-1 text-xs font-mono text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                  Learn more <ArrowRight className="h-3 w-3" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Trust badges */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {TRUST_BADGES.map(({ label }) => (
+              <div
+                key={label}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-mono text-muted-foreground"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                {label}
+              </div>
+            ))}
+          </div>
+
+          {/* CTA row */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-mono text-muted-foreground">
+              <Github className="h-4 w-4" />
+              <span>github.com/your-org/your-repo</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-muted-foreground text-sm font-mono">
+              <span>+</span>
+              <SlackIcon className="h-4 w-4 text-[#4A154B]" />
+              <span>#security-alerts</span>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+            <Button
+              size="sm"
+              className="gradient-primary text-primary-foreground font-mono font-semibold"
+              onClick={() => document.getElementById('auth-card')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              <Zap className="h-3.5 w-3.5 mr-1.5" />
+              Start free — connect now
+            </Button>
+          </div>
+        </div>
+      </section>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <footer className="border-t border-border py-6 px-4 text-center">
