@@ -5,7 +5,7 @@ from rest_framework.response import Response
 
 from .models import Scan, Finding
 from .serializers import ScanSerializer, ScanCreateSerializer, FindingSerializer
-from .slither_runner import run_slither
+from .engine_dispatcher import dispatch
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,12 @@ class ScanViewSet(viewsets.ModelViewSet):
         scan = serializer.save(status='running')
 
         try:
-            raw_findings = run_slither(scan.source_code)
+            raw_findings = dispatch(scan.tool, scan.source_code)
             for f in raw_findings:
                 Finding.objects.create(scan=scan, **f)
             scan.status = 'completed'
         except Exception as exc:
-            logger.exception('Slither run failed for scan %s: %s', scan.pk, exc)
+            logger.exception('Analysis run failed for scan %s (%s): %s', scan.pk, scan.tool, exc)
             scan.error_message = str(exc)
             scan.status = 'failed'
         finally:

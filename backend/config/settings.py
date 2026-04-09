@@ -48,3 +48,24 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = False
 USE_TZ = True
+
+# ---------------------------------------------------------------------------
+# Analysis tool configuration
+#
+# Each entry maps a tool name to either:
+#   - the path to a Python interpreter in a dedicated virtualenv (Mythril)
+#   - the path to a standalone binary (Echidna)
+#
+# If an entry is omitted the runner falls back to the tool's default binary
+# on the system PATH (e.g. 'myth', 'echidna').
+#
+# Example:
+#   ANALYSIS_TOOL_VENVS = {
+#       'mythril':  '/opt/venvs/mythril/bin/python',
+#       'echidna':  '/usr/local/bin/echidna',
+#   }
+# ---------------------------------------------------------------------------
+ANALYSIS_TOOL_VENVS = {
+    # 'mythril':  os.environ.get('MYTHRIL_PYTHON', ''),
+    # 'echidna':  os.environ.get('ECHIDNA_BINARY', ''),
+}

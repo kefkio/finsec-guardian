@@ -9,8 +9,15 @@ class Scan(models.Model):
         ('failed', 'Failed'),
     ]
 
+    TOOL_CHOICES = [
+        ('slither', 'Slither'),
+        ('mythril', 'Mythril'),
+        ('echidna', 'Echidna'),
+    ]
+
     contract_name = models.CharField(max_length=255, default='Unnamed')
     source_code = models.TextField()
+    tool = models.CharField(max_length=20, choices=TOOL_CHOICES, default='slither')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     error_message = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -20,7 +27,7 @@ class Scan(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f'Scan #{self.pk} — {self.contract_name} ({self.status})'
+        return f'Scan #{self.pk} — {self.contract_name} [{self.tool}] ({self.status})'
 
 
 class Finding(models.Model):

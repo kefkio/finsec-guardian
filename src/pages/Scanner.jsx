@@ -9,6 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
+const TOOLS = [
+  { value: 'slither', label: 'Slither', description: 'Static analysis (fast)' },
+  { value: 'mythril', label: 'Mythril', description: 'Symbolic execution' },
+  { value: 'echidna', label: 'Echidna', description: 'Fuzzing / properties' },
+];
+
 const sampleContract = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
@@ -61,13 +67,14 @@ const severityStyles = {
 
 const Scanner = () => {
   const [code, setCode] = useState(sampleContract);
+  const [tool, setTool] = useState('slither');
   const [progress, setProgress] = useState(0);
   const [findings, setFindings] = useState([]);
   const [scanned, setScanned] = useState(false);
   const progressIntervalRef = useRef(null);
 
   const mutation = useMutation({
-    mutationFn: () => scannerApi.createScan({ source_code: code, contract_name: 'Unnamed' }),
+    mutationFn: () => scannerApi.createScan({ source_code: code, contract_name: 'Unnamed', tool }),
     onSuccess: (data) => {
       const rawFindings = data.findings || [];
       setFindings(rawFindings.map(f => ({
@@ -147,6 +154,22 @@ const Scanner = () => {
               >
                 Load Example
               </Button>
+            </div>
+            <div className="flex gap-2 pt-2">
+              {TOOLS.map(t => (
+                <button
+                  key={t.value}
+                  onClick={() => setTool(t.value)}
+                  className={`flex-1 rounded border px-2 py-1.5 text-xs font-mono transition-colors ${
+                    tool === t.value
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-primary/50'
+                  }`}
+                >
+                  <div className="font-semibold">{t.label}</div>
+                  <div className="text-[10px] opacity-70">{t.description}</div>
+                </button>
+              ))}
             </div>
           </CardHeader>
           <CardContent>

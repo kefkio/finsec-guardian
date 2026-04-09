@@ -15,7 +15,7 @@ class ScanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Scan
         fields = [
-            'id', 'contract_name', 'status', 'error_message',
+            'id', 'contract_name', 'tool', 'status', 'error_message',
             'created_at', 'updated_at', 'findings', 'findings_count',
         ]
         read_only_fields = ['status', 'error_message', 'created_at', 'updated_at', 'findings']
@@ -27,4 +27,4 @@ class ScanSerializer(serializers.ModelSerializer):
 class ScanCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Scan
-        fields = ['contract_name', 'source_code']
+        fields = ['contract_name', 'source_code', 'tool']

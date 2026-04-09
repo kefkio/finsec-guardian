@@ -9,8 +9,10 @@ def log_scan_completed(sender, instance, created, **kwargs):
         severity = 'high' if instance.status == 'failed' else 'info'
         AuditEvent.objects.create(
             event_type='scan_completed',
-            description=f'Scan #{instance.pk} ({instance.contract_name}) {instance.status}. '
-                        f'{instance.findings.count()} findings.',
+            description=(
+                f'Scan #{instance.pk} ({instance.contract_name}) [{instance.tool}] '
+                f'{instance.status}. {instance.findings.count()} findings.'
+            ),
             severity=severity,
             resource=f'scan:{instance.pk}',
         )
@@ -22,7 +24,10 @@ def log_scan_created(sender, instance, created, **kwargs):
         from audit.models import AuditEvent
         AuditEvent.objects.create(
             event_type='scan_submitted',
-            description=f'New scan submitted for contract "{instance.contract_name}".',
+            description=(
+                f'New scan submitted for contract "{instance.contract_name}" '
+                f'using {instance.tool}.'
+            ),
             severity='info',
             resource=f'scan:{instance.pk}',
         )
