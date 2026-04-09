@@ -1,0 +1,5 @@
+django>=4.2,<5.0
+djangorestframework>=3.14
+django-cors-headers>=4.0
+slither-analyzer>=0.11
+solc-select>=1.0

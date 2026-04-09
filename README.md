@@ -1,22 +1,21 @@
 # FinSec Guardian
 
-FinSec Guardian is a frontend security workstation prototype for Solidity contract analysis and DeFi risk operations.
+FinSec Guardian is a smart contract security operations console: a React frontend backed by a Django REST Framework API that drives real Solidity static analysis via [Slither](https://github.com/crytic/slither).
 
-It currently provides a complete analyst UI with:
+It provides:
 
-- Contract scan workflow and findings panel
-- Threat model visualization
-- Audit log timeline
-- Tamper-evident record chain simulation
+- **Real Slither-powered contract scanning** — paste Solidity, click Scan, receive live findings
+- Contract scan workflow and findings panel (critical / high / medium / low / info, SWC IDs)
+- Threat model visualization and management
+- Audit log timeline (auto-populated on every scan)
+- Tamper-evident hash-chained record store
 - Security settings dashboard
-
-Important: the scanner logic is currently mock/demo logic in the UI, not a real Solidity static analysis engine yet.
 
 ## What This Project Is
 
-- A React + TypeScript + Vite application
-- A cybersecurity-focused dashboard experience for smart contract security operations
-- A foundation to plug in real analysis backends (Slither/Mythril/Semgrep/custom rules)
+- A React + Vite frontend (JavaScript / JSX)
+- A Django + Django REST Framework backend with Slither integration
+- Full-stack: every page talks to a real API backed by SQLite (swappable to Postgres)
 
 ## Current Feature Set
 
@@ -37,27 +36,27 @@ Current behavior:
 
 ## Platform Security Domains & Codebase Mapping
 
-The platform is organized into the following security domains, each mapped to specific backend and frontend modules:
+The platform is organized into the following security domains:
 
 ### 1. Security Scanning Domain
-- **Backend:** [`finsec-guardian-api/scanner/`](../finsec-guardian-api/scanner/) — Scan job models, views, and logic for contract vulnerability detection.
-- **Frontend:** [`src/pages/Scanner.jsx`](src/pages/Scanner.jsx) — UI for submitting and viewing scan results.
+- **Backend:** [`backend/scanner/`](backend/scanner/) — Scan job models, Slither runner, DRF views
+- **Frontend:** [`src/pages/Scanner.jsx`](src/pages/Scanner.jsx) — UI for submitting and viewing scan results
 
 ### 2. Threat Management Domain
-- **Backend:** [`finsec-guardian-api/threats/`](../finsec-guardian-api/threats/) — Threat identification, classification, and tracking.
-- **Frontend:** [`src/pages/ThreatModel.jsx`](src/pages/ThreatModel.jsx) — UI for threat modeling and management.
+- **Backend:** [`backend/threats/`](backend/threats/) — Threat CRUD with STRIDE categories and risk scoring
+- **Frontend:** [`src/pages/ThreatModel.jsx`](src/pages/ThreatModel.jsx) — UI for threat modeling and management
 
 ### 3. Audit & Compliance Domain
-- **Backend:** [`finsec-guardian-api/audit/`](../finsec-guardian-api/audit/) — Audit event logging, evidence collection, and reporting.
-- **Frontend:** [`src/pages/AuditLog.jsx`](src/pages/AuditLog.jsx) — Interface for viewing audit trails.
+- **Backend:** [`backend/audit/`](backend/audit/) — Audit event log (auto-populated by signals on every scan)
+- **Frontend:** [`src/pages/AuditLog.jsx`](src/pages/AuditLog.jsx) — Interface for viewing audit trails
 
 ### 4. Records Management Domain
-- **Backend:** [`finsec-guardian-api/records/`](../finsec-guardian-api/records/) — Tamper-evident data storage, retention, and archival.
-- **Frontend:** [`src/pages/TamperProofRecords.jsx`](src/pages/TamperProofRecords.jsx) — UI for managing and viewing records.
+- **Backend:** [`backend/records/`](backend/records/) — SHA-256 hash-chained tamper-evident records with server-side verification
+- **Frontend:** [`src/pages/TamperProofRecords.jsx`](src/pages/TamperProofRecords.jsx) — UI for managing and viewing records
 
-### 5. Authentication & Authorization Domain
-- **Backend:** [`finsec-guardian-api/config/settings.py`](../finsec-guardian-api/config/settings.py) — User access control, permissions, and API security settings.
-- **Routing:** [`finsec-guardian-api/config/urls.py`](../finsec-guardian-api/config/urls.py) — API endpoint routing for all domains.
+### 5. Configuration
+- **Settings:** [`backend/config/settings.py`](backend/config/settings.py) — Django settings (CORS, DRF, DB)
+- **Routing:** [`backend/config/urls.py`](backend/config/urls.py) — API endpoint routing for all domains
 
 ---
 
@@ -127,11 +126,57 @@ Current behavior:
 
 - Node.js 18+ (Node.js 20+ recommended)
 - npm
+- Python 3.10+
+- pip
+
+---
+
+### Backend Setup (Django + Slither)
+
+```bash
+cd backend
+
+# Install Python dependencies (Django, DRF, Slither, solc-select)
+pip install -r requirements.txt
+
+# Install and activate the Solidity compiler (required by Slither)
+solc-select install 0.8.20
+solc-select use 0.8.20
+
+# Apply database migrations
+python manage.py migrate
+
+# Start the API server (default: http://localhost:8000)
+python manage.py runserver
+```
+
+> **Tip:** A convenience script is available:
+> ```bash
+> bash backend/setup.sh
+> ```
+
+#### Environment Variables (optional)
+
+| Variable | Default | Description |
+|---|---|---|
+| `DJANGO_SECRET_KEY` | dev-only default | Django secret key — **set in production** |
+| `DJANGO_DEBUG` | `True` | Set to `False` in production |
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hosts |
+
+---
+
+### Frontend Setup
 
 ### Install
 
 ```bash
 npm install
+```
+
+Copy `.env.example` to `.env` (already points to `http://localhost:8000/api`):
+
+```bash
+cp .env.example .env
 ```
 
 ### Run Development Server
@@ -164,11 +209,36 @@ npm run lint
 npm run test
 ```
 
+### Backend Tests
+
+```bash
+cd backend
+python manage.py test scanner.tests -v 2
+```
+
 ### Watch Tests
 
 ```bash
 npm run test:watch
 ```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/scanner/scans/` | List all scans |
+| POST | `/api/scanner/scans/` | Submit contract for Slither analysis |
+| GET | `/api/scanner/scans/{id}/` | Get scan details + findings |
+| GET | `/api/scanner/scans/{id}/findings/` | Get findings for a scan |
+| GET | `/api/threats/threats/` | List threat model entries |
+| POST | `/api/threats/threats/` | Create a threat |
+| PATCH | `/api/threats/threats/{id}/` | Update a threat |
+| DELETE | `/api/threats/threats/{id}/` | Delete a threat |
+| GET | `/api/audit/events/` | List audit events (supports `?search=`) |
+| GET | `/api/records/records/` | List tamper-proof records |
+| POST | `/api/records/records/` | Add a new record (server hashes + chains) |
+| GET | `/api/records/records/verify/` | Verify entire hash chain integrity |
+
 
 ## Security Scanner Scope (Planned)
 
