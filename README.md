@@ -2,12 +2,12 @@
 
 FinSec Guardian is a **secure-by-design** Solidity smart contract security platform. It practises the security disciplines it audits: every layer of the stack — frontend, API, transport, and crawl surface — is hardened against the threat vectors described in the OWASP Top 10 and OWASP Smart Contract Top 10.
 
-The platform runs deep static analysis via [Slither](https://github.com/crytic/slither) (Trail of Bits), classifies every finding against the [OWASP SC Top 10](https://scs.owasp.org/sctop10/), and delivers tamper-proof audit reports — all without requiring contract deployment.
+The platform runs deep static analysis via [Slither](https://github.com/crytic/slither) (Trail of Bits) and symbolic execution via [Mythril](https://github.com/Consensys/mythril) (ConsenSys), classifies every finding against the [OWASP SC Top 10](https://scs.owasp.org/sctop10/), and delivers tamper-proof audit reports — all without requiring contract deployment.
 
 | Repo | Purpose |
 |---|---|
 | `finsec-guardian` (this repo) | React frontend — landing page, scanner UI, dashboard, threat model, audit log, records |
-| `finsec-guardian-api` | Django REST Framework backend — Slither runner, scan job persistence, STRIDE threats, audit events, tamper-proof records |
+| `finsec-guardian-api` | Django REST Framework backend — Slither & Mythril runners, scan job persistence, STRIDE threats, audit events, tamper-proof records |
 
 ---
 
@@ -90,8 +90,11 @@ The platform runs deep static analysis via [Slither](https://github.com/crytic/s
 
 ### Smart Contract Scanner
 - Paste any Solidity source code (supports 0.4.x → 0.8.x via automatic compiler selection)
-- Slither runs 80+ detectors: reentrancy, integer overflow, unprotected upgrades, arbitrary send, and more
+- **Slither** runs 80+ detectors: reentrancy, integer overflow, unprotected upgrades, arbitrary send, and more
+- **Mythril** performs symbolic execution to uncover execution-path vulnerabilities unreachable by static analysis alone
+- Each engine runs in its own isolated Python virtual environment to prevent dependency conflicts
 - Findings include SWC ID, severity (critical / high / medium / low / info), description, and specific remediation
+- Results presented as a human-readable audit report with a risk grade (A–F), severity distribution, and expandable finding cards
 - Every finding mapped to the OWASP Smart Contract Top 10
 
 ### Security Dashboard
@@ -133,7 +136,8 @@ The platform runs deep static analysis via [Slither](https://github.com/crytic/s
 ### Backend
 - Python 3.11+ · Django 5 · Django REST Framework
 - `djangorestframework-simplejwt` · `django-cors-headers` · `python-decouple`
-- Slither (Trail of Bits) · PostgreSQL
+- Slither (Trail of Bits) · Mythril (ConsenSys) — each in a dedicated virtualenv
+- PostgreSQL
 
 ---
 
@@ -235,4 +239,4 @@ npm run test:watch
 
 FinSec Guardian is a unified smart contract security operations console — and a demonstration that security tooling must itself be built securely. The platform practises the OWASP principles it teaches: hardened HTTP headers, strict authentication, input validation at every boundary, tamper-evident audit records, and active bot mitigation.
 
-Built on [OWASP SC Top 10](https://scs.owasp.org/sctop10/) · Powered by [Slither](https://github.com/crytic/slither) · Contact [datasubjectsrights@finsec.com](mailto:datasubjectsrights@finsec.com)
+Built on [OWASP SC Top 10](https://scs.owasp.org/sctop10/) · Powered by [Slither](https://github.com/crytic/slither) & [Mythril](https://github.com/Consensys/mythril) · Contact [datasubjectsrights@finsec.com](mailto:datasubjectsrights@finsec.com)
