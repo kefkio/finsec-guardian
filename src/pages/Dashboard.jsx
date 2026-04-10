@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { scannerApi } from "@/lib/api";
+import { scannerApi, threatsApi } from "@/lib/api";
 import { 
   Shield, AlertTriangle, FileSearch, Bug, TrendingDown, TrendingUp, Activity,
   Clock, CheckCircle2, AlertCircle, Zap, Lock
@@ -53,10 +53,10 @@ const severityColor = {
 };
 
 const severityBg = {
-  critical: "bg-red-950/40",
-  high: "bg-orange-950/40",
-  medium: "bg-yellow-950/40",
-  low: "bg-green-950/40",
+  critical: "bg-red-500/10",
+  high: "bg-orange-500/10",
+  medium: "bg-yellow-500/10",
+  low: "bg-green-500/10",
 };
 
 const statusConfig = {
@@ -74,20 +74,42 @@ function relativeTime(isoString) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function buildScanHistory(scans) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return {
+      date: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      dateStr: d.toISOString().slice(0, 10),
+      scans: 0,
+      vulns: 0,
+    };
+  });
+  scans.forEach(scan => {
+    const scanDate = scan.created_at?.slice(0, 10);
+    const day = days.find(d => d.dateStr === scanDate);
+    if (day) {
+      day.scans++;
+      day.vulns += scan.total_findings || 0;
+    }
+  });
+  return days;
+}
+
 function StatCard({ label, value, change, icon: Icon, trend, bgGradient }) {
   const isPositive = change?.startsWith("+") || trend === "up";
   const TrendIcon = trend === "up" ? TrendingUp : TrendingDown;
   
   return (
-    <Card className="relative overflow-hidden border-slate-700/50 bg-slate-900/50 backdrop-blur-xl hover:bg-slate-900/70 transition-all duration-300 group">
+    <Card className="relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-xl hover:bg-card/70 transition-all duration-300 group">
       <div className={`absolute inset-0 ${bgGradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
-      <CardContent className="relative p-5">
+      <CardContent className="relative p-3 sm:p-5">
         <div className="flex items-start justify-between">
           <div className="flex-1">
-            <p className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-2">
+            <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest mb-2">
               {label}
             </p>
-            <p className="text-3xl font-bold bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">
+            <p className="text-2xl sm:text-3xl font-bold text-foreground">
               {value}
             </p>
             {change && (
@@ -96,12 +118,12 @@ function StatCard({ label, value, change, icon: Icon, trend, bgGradient }) {
                 <span className={`text-xs font-mono ${isPositive ? "text-red-400" : "text-green-400"}`}>
                   {change}
                 </span>
-                <span className="text-xs text-slate-500">from last week</span>
+                <span className="text-xs text-muted-foreground">from last week</span>
               </div>
             )}
           </div>
-          <div className="rounded-lg bg-gradient-to-br from-slate-700/50 to-slate-800/50 p-3 group-hover:from-slate-700 group-hover:to-slate-800 transition-colors">
-            <Icon className="w-5 h-5 text-slate-300" />
+          <div className="rounded-lg bg-secondary/60 p-3 group-hover:bg-secondary transition-colors">
+            <Icon className="w-5 h-5 text-muted-foreground" />
           </div>
         </div>
       </CardContent>
@@ -110,24 +132,99 @@ function StatCard({ label, value, change, icon: Icon, trend, bgGradient }) {
 }
 
 const Dashboard = () => {
-  const { data: scansData } = useQuery({
-    queryKey: ['scans'],
-    queryFn: scannerApi.getScans,
-    staleTime: 5000,
+  const { data: scansData, isLoading } = useQuery({
+    queryKey: ['dashboard-scans'],
+    queryFn: scannerApi.getDashboardScans,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
 
-  const rawScans = Array.isArray(scansData) ? scansData : (scansData?.results || []);
-  const recentScans = rawScans.length > 0
-    ? rawScans.slice(0, 5).map(scan => ({
-        name: scan.contract_name || 'Unnamed',
-        vulns: scan.finding_count ?? 0,
-        severity: scan.finding_count >= 2 ? "critical" : scan.finding_count >= 1 ? "high" : "low",
+  const { data: threatsData } = useQuery({
+    queryKey: ['threats'],
+    queryFn: threatsApi.getThreats,
+    staleTime: 60_000,
+  });
+
+  const allScans = Array.isArray(scansData) ? scansData : (scansData?.results || []);
+  const totalScans = scansData?.count ?? allScans.length;
+
+  const criticalVulns = allScans.reduce((s, sc) => s + (sc.critical_count || 0), 0);
+  const highVulns = allScans.reduce((s, sc) => s + (sc.high_count || 0), 0);
+  const mediumVulns = allScans.reduce((s, sc) => s + (sc.medium_count || 0), 0);
+  const lowVulns = allScans.reduce((s, sc) => s + (sc.low_count || 0), 0);
+  const totalVulns = criticalVulns + highVulns + mediumVulns + lowVulns;
+
+  const activeThreats = Array.isArray(threatsData)
+    ? threatsData.length
+    : (threatsData?.results?.length ?? 0);
+
+  const riskScore = totalScans === 0 ? 0 : Math.min(99, Math.round(
+    (criticalVulns * 25 + highVulns * 10 + mediumVulns * 4 + lowVulns) / Math.max(totalScans, 1)
+  ));
+
+  const WEEK_MS = 7 * 24 * 3600 * 1000;
+  const now = Date.now();
+  const thisWeekScans = allScans.filter(s => now - new Date(s.created_at).getTime() <= WEEK_MS);
+  const lastWeekScans = allScans.filter(s => {
+    const age = now - new Date(s.created_at).getTime();
+    return age > WEEK_MS && age <= 2 * WEEK_MS;
+  });
+  const thisWeekCritical = thisWeekScans.reduce((s, sc) => s + (sc.critical_count || 0), 0);
+  const lastWeekCritical = lastWeekScans.reduce((s, sc) => s + (sc.critical_count || 0), 0);
+  const scanChange = lastWeekScans.length > 0
+    ? `${thisWeekScans.length >= lastWeekScans.length ? '+' : ''}${thisWeekScans.length - lastWeekScans.length}`
+    : null;
+  const criticalChange = lastWeekCritical > 0
+    ? `${thisWeekCritical >= lastWeekCritical ? '+' : ''}${thisWeekCritical - lastWeekCritical}`
+    : null;
+
+  const recentScans = allScans.length > 0
+    ? allScans.slice(0, 5).map(scan => ({
+        name: scan.contract_name || 'Unnamed Contract',
+        vulns: scan.total_findings || 0,
+        severity: scan.critical_count > 0 ? 'critical'
+          : scan.high_count > 0 ? 'high'
+          : scan.medium_count > 0 ? 'medium'
+          : 'low',
         time: relativeTime(scan.created_at),
+        status: scan.status === 'complete' ? 'completed' : scan.status,
+        risk: Math.min(99,
+          (scan.critical_count || 0) * 25 +
+          (scan.high_count || 0) * 10 +
+          (scan.medium_count || 0) * 4 +
+          (scan.low_count || 0)
+        ),
       }))
     : staticRecentScans;
 
+  const chartData = (() => {
+    const built = buildScanHistory(allScans);
+    return built.some(d => d.scans > 0) ? built : scanHistory;
+  })();
+
+  const vulnDistributionData = totalVulns > 0
+    ? [
+        { name: "Critical", value: Math.round(criticalVulns / totalVulns * 100), color: "#ef4444" },
+        { name: "High",     value: Math.round(highVulns   / totalVulns * 100), color: "#f97316" },
+        { name: "Medium",   value: Math.round(mediumVulns / totalVulns * 100), color: "#eab308" },
+        { name: "Low",      value: Math.round(lowVulns    / totalVulns * 100), color: "#22c55e" },
+      ].filter(v => v.value > 0)
+    : vulnDistribution;
+
+  const severityMatrixData = totalVulns > 0
+    ? [
+        criticalVulns > 0 && { x: 15, y: 85, size: criticalVulns * 80, severity: "CRITICAL", count: criticalVulns, color: "#ef4444" },
+        highVulns   > 0 && { x: 40, y: 65, size: highVulns   * 60, severity: "HIGH",     count: highVulns,     color: "#f97316" },
+        mediumVulns > 0 && { x: 65, y: 40, size: mediumVulns * 40, severity: "MEDIUM",   count: mediumVulns,   color: "#eab308" },
+        lowVulns    > 0 && { x: 85, y: 20, size: lowVulns    * 20, severity: "LOW",      count: lowVulns,      color: "#22c55e" },
+      ].filter(Boolean)
+    : severityMatrix;
+
+  const lastScanTime = allScans[0]?.created_at ? relativeTime(allScans[0].created_at) : '—';
+  const resolvedCount = allScans.filter(s => s.status === 'complete').length;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6 md:p-8">
+    <div className="min-h-screen bg-background p-6 md:p-8">
       {/* Animated background grid */}
       <div className="fixed inset-0 pointer-events-none opacity-10">
         <div className="absolute inset-0 bg-grid-pattern" />
@@ -138,48 +235,44 @@ const Dashboard = () => {
         <div className="space-y-2 mb-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-400 to-cyan-400 animate-pulse" />
-            <span className="text-xs font-mono text-slate-400">SECURITY OPERATIONS CENTER</span>
+            <span className="text-xs font-mono text-muted-foreground">SECURITY OPERATIONS CENTER</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-slate-100 via-blue-200 to-cyan-200 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold text-foreground">
             Smart Contract Security Dashboard
           </h1>
-          <p className="text-sm text-slate-400 font-mono mt-2">
+          <p className="text-sm text-muted-foreground font-mono mt-2">
             Real-time threat detection and vulnerability analysis
           </p>
         </div>
 
         {/* Key Metrics */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard 
-            label="Total Scans" 
-            value="142" 
-            change="+12%" 
+        <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+          <StatCard
+            label="Total Scans"
+            value={isLoading ? "…" : totalScans.toString()}
+            change={scanChange}
             icon={FileSearch}
-            trend="up"
+            trend={scanChange?.startsWith('+') ? "up" : "down"}
             bgGradient="bg-gradient-to-br from-blue-500 to-blue-600"
           />
-          <StatCard 
-            label="Critical Vulns" 
-            value="23" 
-            change="-8%" 
+          <StatCard
+            label="Critical Vulns"
+            value={isLoading ? "…" : criticalVulns.toString()}
+            change={criticalChange}
             icon={AlertTriangle}
-            trend="down"
+            trend={criticalChange?.startsWith('+') ? "up" : "down"}
             bgGradient="bg-gradient-to-br from-red-500 to-red-600"
           />
-          <StatCard 
-            label="Active Threats" 
-            value="7" 
-            change="+2" 
+          <StatCard
+            label="Active Threats"
+            value={isLoading ? "…" : activeThreats.toString()}
             icon={AlertCircle}
-            trend="up"
             bgGradient="bg-gradient-to-br from-orange-500 to-orange-600"
           />
-          <StatCard 
-            label="Risk Score" 
-            value="72" 
-            change="-5%" 
+          <StatCard
+            label="Risk Score"
+            value={isLoading ? "…" : riskScore.toString()}
             icon={Shield}
-            trend="down"
             bgGradient="bg-gradient-to-br from-yellow-500 to-yellow-600"
           />
         </div>
@@ -187,30 +280,30 @@ const Dashboard = () => {
         {/* Main Analytics Grid */}
         <div className="grid gap-6 lg:grid-cols-3">
           {/* Scan Activity Chart */}
-          <Card className="lg:col-span-2 border-slate-700/50 bg-slate-900/50 backdrop-blur-xl overflow-hidden">
-            <CardHeader className="border-b border-slate-700/50 pb-4">
+          <Card className="lg:col-span-2 border-border/50 bg-card/50 backdrop-blur-xl overflow-hidden">
+            <CardHeader className="border-b border-border/50 pb-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-sm font-mono uppercase tracking-widest text-slate-300 mb-1">
+                  <CardTitle className="text-sm font-mono uppercase tracking-widest text-card-foreground/80 mb-1">
                     Scan Activity & Vulnerability Trend
                   </CardTitle>
-                  <p className="text-xs text-slate-500">7-day historical analysis</p>
+                  <p className="text-xs text-muted-foreground">7-day historical analysis</p>
                 </div>
                 <div className="flex gap-2">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-cyan-400" />
-                    <span className="text-xs text-slate-400">Scans</span>
+                    <span className="text-xs text-muted-foreground">Scans</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-red-400" />
-                    <span className="text-xs text-slate-400">Vulns Found</span>
+                    <span className="text-xs text-muted-foreground">Vulns Found</span>
                   </div>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-6">
               <ResponsiveContainer width="100%" height={280}>
-                <ComposedChart data={scanHistory}>
+                <ComposedChart data={chartData}>
                   <defs>
                     <linearGradient id="scanGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(186, 100%, 50%)" stopOpacity={0.3} />
@@ -239,14 +332,15 @@ const Dashboard = () => {
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "rgba(15, 23, 42, 0.95)",
-                      border: "1px solid rgba(71, 85, 105, 0.5)",
-                      borderRadius: "0.75rem",
-                      fontFamily: "JetBrains Mono",
-                      fontSize: "12px",
-                      boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
-                    }}
-                    cursor={{ fill: "rgba(100, 116, 139, 0.1)" }}
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "0.75rem",
+                    fontFamily: "JetBrains Mono",
+                    fontSize: "12px",
+                    color: "hsl(var(--card-foreground))",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                  }}
+                  cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
                   />
                   <Bar dataKey="scans" fill="hsl(186, 100%, 50%)" fillOpacity={0.3} radius={[4, 4, 0, 0]} />
                   <Line 
@@ -263,18 +357,18 @@ const Dashboard = () => {
           </Card>
 
           {/* Vulnerability Distribution */}
-          <Card className="border-slate-700/50 bg-slate-900/50 backdrop-blur-xl">
-            <CardHeader className="border-b border-slate-700/50 pb-4">
-              <CardTitle className="text-sm font-mono uppercase tracking-widest text-slate-300">
+          <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
+            <CardHeader className="border-b border-border/50 pb-4">
+              <CardTitle className="text-sm font-mono uppercase tracking-widest text-card-foreground/80">
                 Threat Classification
               </CardTitle>
-              <p className="text-xs text-slate-500 mt-1">Vulnerability types identified</p>
+              <p className="text-xs text-muted-foreground mt-1">Vulnerability types identified</p>
             </CardHeader>
             <CardContent className="p-6">
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie
-                    data={vulnDistribution}
+                    data={vulnDistributionData}
                     dataKey="value"
                     cx="50%"
                     cy="50%"
@@ -283,20 +377,20 @@ const Dashboard = () => {
                     strokeWidth={2}
                     stroke="rgba(15, 23, 42, 0.8)"
                   >
-                    {vulnDistribution.map((entry, i) => (
+                    {vulnDistributionData.map((entry, i) => (
                       <Cell key={i} fill={entry.color} />
                     ))}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-2 mt-4">
-                {vulnDistribution.map(item => (
+                {vulnDistributionData.map(item => (
                   <div key={item.name} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full" style={{ background: item.color }} />
-                      <span className="text-slate-400 font-mono">{item.name}</span>
+                      <span className="text-muted-foreground font-mono">{item.name}</span>
                     </div>
-                    <span className="text-slate-300 font-semibold">{item.value}%</span>
+                    <span className="text-card-foreground font-semibold">{item.value}%</span>
                   </div>
                 ))}
               </div>
@@ -305,12 +399,12 @@ const Dashboard = () => {
         </div>
 
         {/* Risk Matrix */}
-        <Card className="border-slate-700/50 bg-slate-900/50 backdrop-blur-xl">
-          <CardHeader className="border-b border-slate-700/50 pb-4">
-            <CardTitle className="text-sm font-mono uppercase tracking-widest text-slate-300">
+        <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
+            <CardTitle className="text-sm font-mono uppercase tracking-widest text-card-foreground/80">
               Risk Assessment Matrix
             </CardTitle>
-            <p className="text-xs text-slate-500 mt-1">Severity vs. Frequency analysis</p>
+            <p className="text-xs text-muted-foreground mt-1">Severity vs. Frequency analysis</p>
           </CardHeader>
           <CardContent className="p-6">
             <ResponsiveContainer width="100%" height={300}>
@@ -332,35 +426,35 @@ const Dashboard = () => {
                 />
                 <Tooltip
                   contentStyle={{
-                    background: "rgba(15, 23, 42, 0.95)",
-                    border: "1px solid rgba(71, 85, 105, 0.5)",
+                    background: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
                     borderRadius: "0.75rem",
                     fontFamily: "JetBrains Mono",
                     fontSize: "12px",
+                    color: "hsl(var(--card-foreground))",
                   }}
-                  cursor={{ fill: "rgba(100, 116, 139, 0.1)" }}
+                  cursor={{ fill: "hsl(var(--muted) / 0.3)" }}
                   formatter={(value) => `${value.severity}: ${value.count} issues`}
                 />
-                <Scatter name="Critical" data={[severityMatrix[0]]} fill={severityMatrix[0].color} shape="circle" />
-                <Scatter name="High" data={[severityMatrix[1]]} fill={severityMatrix[1].color} />
-                <Scatter name="Medium" data={[severityMatrix[2]]} fill={severityMatrix[2].color} />
-                <Scatter name="Low" data={[severityMatrix[3]]} fill={severityMatrix[3].color} />
+                {severityMatrixData.map(item => (
+                  <Scatter key={item.severity} name={item.severity} data={[item]} fill={item.color} />
+                ))}
               </ScatterChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Recent Scans Table */}
-        <Card className="border-slate-700/50 bg-slate-900/50 backdrop-blur-xl">
-          <CardHeader className="border-b border-slate-700/50 pb-4">
+        <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
+          <CardHeader className="border-b border-border/50 pb-4">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-sm font-mono uppercase tracking-widest text-slate-300">
+                <CardTitle className="text-sm font-mono uppercase tracking-widest text-card-foreground/80">
                   Recent Security Scans
                 </CardTitle>
-                <p className="text-xs text-slate-500 mt-1">Latest contract analysis results</p>
+                <p className="text-xs text-muted-foreground mt-1">Latest contract analysis results</p>
               </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="w-4 h-4" />
                 Live Updates
               </div>
@@ -370,12 +464,12 @@ const Dashboard = () => {
             <div className="space-y-3">
               {recentScans.map((scan, i) => {
                 const StatusIcon = statusConfig[scan.status]?.icon || Activity;
-                const statusColor = statusConfig[scan.status]?.color || "text-slate-400";
+                const statusColor = statusConfig[scan.status]?.color || "text-muted-foreground";
                 
                 return (
                   <div
                     key={i}
-                    className={`group relative rounded-lg border transition-all duration-300 hover:border-slate-500/50 hover:bg-slate-800/50 ${severityBg[scan.severity]} ${severityColor[scan.severity].split(" ").pop()}`}
+                    className={`group relative rounded-lg border transition-all duration-300 hover:border-border hover:bg-muted/50 ${severityBg[scan.severity]} ${severityColor[scan.severity].split(" ").pop()}`}
                   >
                     {/* Status indicator line */}
                     <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${
@@ -388,10 +482,10 @@ const Dashboard = () => {
                     <div className="pl-4 pr-4 py-4 flex items-center justify-between group-hover:translate-x-1 transition-transform">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         <div className="flex-shrink-0">
-                          <FileSearch className="w-5 h-5 text-slate-400" />
+                          <FileSearch className="w-5 h-5 text-muted-foreground" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-mono text-sm font-semibold text-slate-100 truncate">
+                          <p className="font-mono text-sm font-semibold text-foreground truncate">
                             {scan.name}
                           </p>
                           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -401,7 +495,7 @@ const Dashboard = () => {
                             >
                               {scan.severity.toUpperCase()}
                             </Badge>
-                            <span className="text-xs text-slate-500 font-mono">
+                            <span className="text-xs text-muted-foreground font-mono">
                               {scan.vulns} vulnerabilities
                             </span>
                           </div>
@@ -411,16 +505,16 @@ const Dashboard = () => {
                       <div className="flex items-center gap-4 flex-shrink-0 ml-4">
                         {/* Risk Score */}
                         <div className="text-right">
-                          <div className="text-lg font-bold text-slate-100">
+                          <div className="text-lg font-bold text-foreground">
                             {scan.risk || (scan.vulns * 20)}
                           </div>
-                          <div className="text-xs text-slate-500 font-mono">RISK</div>
+                          <div className="text-xs text-muted-foreground font-mono">RISK</div>
                         </div>
 
                         {/* Status */}
                         <div className="flex flex-col items-center gap-1">
                           <StatusIcon className={`w-4 h-4 ${statusColor}`} />
-                          <span className="text-xs text-slate-500 font-mono">
+                          <span className="text-xs text-muted-foreground font-mono">
                             {scan.time}
                           </span>
                         </div>
@@ -431,25 +525,25 @@ const Dashboard = () => {
               })}
             </div>
 
-            <button className="w-full mt-4 px-4 py-3 rounded-lg border border-slate-700/50 bg-slate-800/50 text-slate-300 hover:bg-slate-800 transition-colors text-sm font-mono uppercase tracking-wide">
+            <button className="w-full mt-4 px-4 py-3 rounded-lg border border-border/50 bg-muted/50 text-muted-foreground hover:bg-muted transition-colors text-sm font-mono uppercase tracking-wide">
               View All Scans →
             </button>
           </CardContent>
         </Card>
 
         {/* Footer Stats */}
-        <div className="grid gap-4 md:grid-cols-3 pt-4">
+        <div className="grid gap-4 sm:grid-cols-3 pt-4">
           <div className="border-l-2 border-cyan-400/50 pl-4 py-2">
-            <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-1">Last Update</p>
-            <p className="text-lg font-semibold text-slate-100">2 minutes ago</p>
+            <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">Last Update</p>
+            <p className="text-lg font-semibold text-foreground">{lastScanTime}</p>
           </div>
           <div className="border-l-2 border-green-400/50 pl-4 py-2">
-            <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-1">Resolved Issues</p>
-            <p className="text-lg font-semibold text-slate-100">28 of 142</p>
+            <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">Resolved Issues</p>
+            <p className="text-lg font-semibold text-foreground">{resolvedCount} of {totalScans}</p>
           </div>
           <div className="border-l-2 border-orange-400/50 pl-4 py-2">
-            <p className="text-xs text-slate-500 font-mono uppercase tracking-widest mb-1">Active Contracts</p>
-            <p className="text-lg font-semibold text-slate-100">45</p>
+            <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest mb-1">Total Contracts</p>
+            <p className="text-lg font-semibold text-foreground">{totalScans}</p>
           </div>
         </div>
       </div>

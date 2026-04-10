@@ -98,6 +98,7 @@ export const scannerApi = {
   getScan: (id) => request(`/scanner/scans/${id}/`),
   createScan: (data) => request('/scanner/scans/', { method: 'POST', body: JSON.stringify(data) }),
   getFindings: (id) => request(`/scanner/scans/${id}/findings/`),
+  getDashboardScans: () => request('/scanner/scans/?ordering=-created_at&page_size=100'),
 };
 
 // Threats

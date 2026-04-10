@@ -1,182 +1,179 @@
 # FinSec Guardian
 
-FinSec Guardian is a smart contract security operations console: a React frontend backed by a Django REST Framework API that drives real Solidity static analysis via [Slither](https://github.com/crytic/slither).
+FinSec Guardian is a **secure-by-design** Solidity smart contract security platform. It practises the security disciplines it audits: every layer of the stack — frontend, API, transport, and crawl surface — is hardened against the threat vectors described in the OWASP Top 10 and OWASP Smart Contract Top 10.
 
-It provides:
+The platform runs deep static analysis via [Slither](https://github.com/crytic/slither) (Trail of Bits), classifies every finding against the [OWASP SC Top 10](https://scs.owasp.org/sctop10/), and delivers tamper-proof audit reports — all without requiring contract deployment.
 
-- **Real Slither-powered contract scanning** — paste Solidity, click Scan, receive live findings
-- Contract scan workflow and findings panel (critical / high / medium / low / info, SWC IDs)
-- Threat model visualization and management
-- Audit log timeline (auto-populated on every scan)
-- Tamper-evident hash-chained record store
-- Security settings dashboard
-
-## What This Project Is
-
-- A React + Vite frontend (JavaScript / JSX)
-- A Django + Django REST Framework backend with Slither integration
-- Full-stack: every page talks to a real API backed by SQLite (swappable to Postgres)
-
-## Current Feature Set
-
-### 1) Contract Scanner
-
-- Paste Solidity source code in an editor panel
-- Trigger a scan workflow with progress state
-- View categorized findings (critical/high/medium/low/info)
-- Read recommendations per finding with SWC-style IDs
-
-Current behavior:
-
-- Scanner results are mock findings defined in the frontend
-- No compiler parsing, AST pass, symbolic execution, or bytecode analysis yet
-
-### 2) Security Dashboard
-
-
-## Platform Security Domains & Codebase Mapping
-
-The platform is organized into the following security domains:
-
-### 1. Security Scanning Domain
-- **Backend:** [`backend/scanner/`](backend/scanner/) — Scan job models, Slither runner, DRF views
-- **Frontend:** [`src/pages/Scanner.jsx`](src/pages/Scanner.jsx) — UI for submitting and viewing scan results
-
-### 2. Threat Management Domain
-- **Backend:** [`backend/threats/`](backend/threats/) — Threat CRUD with STRIDE categories and risk scoring
-- **Frontend:** [`src/pages/ThreatModel.jsx`](src/pages/ThreatModel.jsx) — UI for threat modeling and management
-
-### 3. Audit & Compliance Domain
-- **Backend:** [`backend/audit/`](backend/audit/) — Audit event log (auto-populated by signals on every scan)
-- **Frontend:** [`src/pages/AuditLog.jsx`](src/pages/AuditLog.jsx) — Interface for viewing audit trails
-
-### 4. Records Management Domain
-- **Backend:** [`backend/records/`](backend/records/) — SHA-256 hash-chained tamper-evident records with server-side verification
-- **Frontend:** [`src/pages/TamperProofRecords.jsx`](src/pages/TamperProofRecords.jsx) — UI for managing and viewing records
-
-### 5. Configuration
-- **Settings:** [`backend/config/settings.py`](backend/config/settings.py) — Django settings (CORS, DRF, DB)
-- **Routing:** [`backend/config/urls.py`](backend/config/urls.py) — API endpoint routing for all domains
+| Repo | Purpose |
+|---|---|
+| `finsec-guardian` (this repo) | React frontend — landing page, scanner UI, dashboard, threat model, audit log, records |
+| `finsec-guardian-api` | Django REST Framework backend — Slither runner, scan job persistence, STRIDE threats, audit events, tamper-proof records |
 
 ---
 
-- High-level KPI cards (contracts scanned, critical vulns, active threats, risk score)
-- Scan activity chart and vulnerability distribution chart
-- Recent scans list
+## Application Security Architecture
 
-Current behavior:
+> FinSec Guardian is itself a hardened web application. This section documents the security controls built into every layer of the platform.
 
-- Dashboard data is static demo data
+### 1. Authentication & Session Management  *(OWASP A07)*
 
-### 3) Threat Model
+| Control | Implementation |
+|---|---|
+| Authentication scheme | JWT (access + refresh tokens) via `djangorestframework-simplejwt` |
+| Token storage | `localStorage` with explicit `clear()` on logout; no cookies |
+| Silent token refresh | Expired access tokens are refreshed transparently via `/api/auth/refresh/`; on failure the session is cleared and the user is redirected to `/login` |
+| Protected routes | All authenticated routes are wrapped in a `ProtectedRoute` component; unauthenticated requests receive HTTP 401 |
+| Password policy | Django's `AUTH_PASSWORD_VALIDATORS` enforces minimum length, blocks common passwords, and rejects passwords too similar to the username |
+| Registration input | `RegisterSerializer` validates and sanitises all user-supplied fields before the ORM handles them |
 
-- STRIDE-oriented threat cards
-- Likelihood/impact scoring and derived risk score
-- Mitigation recommendations by threat type
+### 2. API Authorisation  *(OWASP A01)*
 
-Current behavior:
+- Every API endpoint requires `IsAuthenticated` (`permission_classes = [IsAuthenticated]`) — anonymous access returns HTTP 401
+- JWT authentication is the sole `DEFAULT_AUTHENTICATION_CLASS`; session/cookie auth is not enabled on the API
+- The Django admin interface is available only at a non-guessable path and is not exposed in the public API router
 
-- Threat records are static demo scenarios
+### 3. Injection & Input Validation  *(OWASP A03)*
 
-### 4) Audit Log
+- All database queries are issued through Django's ORM — raw SQL is not used anywhere
+- DRF serialisers validate and whitelist all incoming fields before any model interaction
+- Solidity source code submitted for scanning is passed directly to Slither as file input — it is never executed, interpreted, or rendered as HTML
+- Honeypot hidden fields on the login and registration forms silently reject automated bot submissions that fill invisible inputs
 
-- Searchable event stream UI
-- Severity-tagged timeline entries with actor/resource/IP context
+### 4. Cross-Origin Resource Sharing  *(OWASP A05)*
 
-Current behavior:
+- `django-cors-headers` is installed as the first response middleware
+- `CORS_ALLOWED_ORIGINS` is set via environment variable — no wildcard (`*`) origins are permitted
+- In production, only the exact frontend origin is whitelisted
 
-- Entries are static demo events
+### 5. Security HTTP Headers  *(OWASP A05)*
 
-### 5) Tamper-Proof Records
+**Backend (Django middleware stack):**
 
-- Client-side hash chain simulation (SHA-256 via browser crypto API)
-- Add records, verify chain integrity, and simulate tampering
-- Display simulated Solidity contract for anchoring concept
+| Header | Middleware |
+|---|---|
+| `X-Frame-Options: DENY` | `XFrameOptionsMiddleware` |
+| `X-Content-Type-Options: nosniff` | `SecurityMiddleware` |
+| HTTPS redirect (production) | `SecurityMiddleware` (`SECURE_SSL_REDIRECT`) |
+| HSTS (production) | `SecurityMiddleware` (`SECURE_HSTS_SECONDS`) |
+| CSRF protection | `CsrfViewMiddleware` |
 
-Current behavior:
+**Frontend (`index.html` meta tags):**
 
-- No wallet connection, no deployed contract, no on-chain writes yet
+| Header / Meta | Value |
+|---|---|
+| `Content-Security-Policy` | `default-src 'self'`; scripts, styles, images, and connections locked to same-origin + explicit API origins; `object-src 'none'`; `base-uri 'self'` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+
+### 6. Bot & Automated Threat Mitigation  *(OWASP A09)*
+
+- **`robots.txt`** explicitly blocks known malicious scrapers and data-harvesting bots (AhrefsBot, SemrushBot, MJ12bot, DotBot, BLEXBot, Bytespider, GPTBot, CCBot, `python-requests`, Scrapy, and others) while still allowing search engine crawler access to public pages
+- `/api/` and `/admin/` paths are `Disallow`-ed for all crawlers, preventing automated discovery of API endpoints
+- **Honeypot fields** on authentication forms (hidden via CSS, never populated by real users) silently reject requests from bots that blindly fill all form fields — no error is shown; the submission is discarded server-side
+- Rate throttling (DRF `AnonRateThrottle` / `UserRateThrottle`) is applied to all endpoints, with tighter limits on the authentication and registration routes to resist credential-stuffing attacks
+
+### 7. Sensitive Data Exposure  *(OWASP A02)*
+
+- `SECRET_KEY` and all credentials are loaded from environment variables via `python-decouple` — no secrets appear in source code
+- The `DEBUG` flag is environment-controlled; in production it is `False`, suppressing stack traces in HTTP responses
+- `ALLOWED_HOSTS` is explicitly set via environment variable, preventing HTTP Host header injection
+- Scan job source code is stored in the database only for the authenticated user's own records and is never returned in list endpoints — only in the detail view of the owning user
+
+### 8. Tamper-Evident Audit Trail  *(OWASP A09)*
+
+- Every significant action (scan creation, threat update, record addition) produces an immutable `AuditEvent` record in the database
+- Client-side record integrity uses `window.crypto.subtle` SHA-256 hashing in a hash-chain structure — any record modification or deletion breaks the chain and is immediately detectable on the Records page
+
+---
+
+## Platform Features
+
+### Smart Contract Scanner
+- Paste any Solidity source code (supports 0.4.x → 0.8.x via automatic compiler selection)
+- Slither runs 80+ detectors: reentrancy, integer overflow, unprotected upgrades, arbitrary send, and more
+- Findings include SWC ID, severity (critical / high / medium / low / info), description, and specific remediation
+- Every finding mapped to the OWASP Smart Contract Top 10
+
+### Security Dashboard
+- KPI cards: contracts scanned, critical vulnerabilities, active threats, overall risk score
+- Scan activity chart and vulnerability distribution by severity
+
+### Threat Model
+- STRIDE-oriented threat catalogue (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege)
+- Likelihood/impact scoring with derived risk scores and mitigation recommendations
+
+### Audit Log
+- Searchable, severity-tagged event timeline with actor, resource, and context per event
+
+### Tamper-Proof Records
+- SHA-256 hash chain with client-side chain verification and tampering detection
+
+---
+
+## Platform Security Domains & Codebase Mapping
+
+| Domain | Backend | Frontend |
+|---|---|---|
+| Security Scanning | [`finsec-guardian-api/scanner/`](../finsec-guardian-api/scanner/) | [`src/pages/Scanner.jsx`](src/pages/Scanner.jsx) |
+| Threat Management | [`finsec-guardian-api/threats/`](../finsec-guardian-api/threats/) | [`src/pages/ThreatModel.jsx`](src/pages/ThreatModel.jsx) |
+| Audit & Compliance | [`finsec-guardian-api/audit/`](../finsec-guardian-api/audit/) | [`src/pages/AuditLog.jsx`](src/pages/AuditLog.jsx) |
+| Records Management | [`finsec-guardian-api/records/`](../finsec-guardian-api/records/) | [`src/pages/TamperProofRecords.jsx`](src/pages/TamperProofRecords.jsx) |
+| Auth & Settings | [`finsec-guardian-api/config/`](../finsec-guardian-api/config/) | [`src/pages/Login.jsx`](src/pages/Login.jsx), [`src/pages/Settings.jsx`](src/pages/Settings.jsx) |
+
+---
 
 ## Tech Stack
 
-- React 18
-- TypeScript
-- Vite 5
-- Tailwind CSS
-- shadcn/ui + Radix UI
-- Recharts (visualizations)
-- React Router
-- TanStack Query (available in app setup)
-- Vitest + Testing Library
-- Playwright (configured)
+### Frontend
+- React 18 (JSX) · Vite 5 · Tailwind CSS
+- shadcn/ui + Radix UI · lucide-react · Recharts
+- React Router v6 · TanStack Query v5
+- Vitest + Testing Library · Playwright (E2E)
+
+### Backend
+- Python 3.11+ · Django 5 · Django REST Framework
+- `djangorestframework-simplejwt` · `django-cors-headers` · `python-decouple`
+- Slither (Trail of Bits) · PostgreSQL
+
+---
 
 ## Project Structure
 
-- src/pages/Scanner.tsx: scanner flow and findings UI (mock analysis)
-- src/pages/Dashboard.tsx: security metrics and charts
-- src/pages/ThreatModel.tsx: threat catalog and risk modeling view
-- src/pages/AuditLog.tsx: security event timeline
-- src/pages/TamperProofRecords.tsx: hash-chain simulation and verification
-- src/pages/Settings.tsx: security and scanner settings UI
-- src/components/AppLayout.tsx: sidebar + routed layout shell
+```
+src/
+  pages/
+    Login.jsx              # Public landing page + auth (honeypot, sign in, register)
+    Index.jsx              # Security dashboard (KPIs, charts, recent scans)
+    Scanner.jsx            # Contract scanner — paste Solidity, view findings
+    ThreatModel.jsx        # STRIDE threat catalogue and risk scoring
+    AuditLog.jsx           # Security event timeline
+    TamperProofRecords.jsx # Hash-chain record verification
+    Settings.jsx           # Security and scanner settings
+  components/
+    AppLayout.jsx          # Sidebar + routed layout shell (authenticated area)
+  hooks/
+    use-theme.js           # Light/dark theme toggle with localStorage persistence
+    use-mobile.js          # Mobile breakpoint detection
+  lib/
+    api.js                 # JWT API client — silent refresh, 401 handling, tokenStorage
+    utils.js               # Tailwind class utilities
+public/
+  robots.txt              # Crawler policy — bad bots blocked, /api/ disallowed globally
+```
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ (Node.js 20+ recommended)
-- npm
-- Python 3.10+
-- pip
-
----
-
-### Backend Setup (Django + Slither)
-
-```bash
-cd backend
-
-# Install Python dependencies (Django, DRF, Slither, solc-select)
-pip install -r requirements.txt
-
-# Install and activate the Solidity compiler (required by Slither)
-solc-select install 0.8.20
-solc-select use 0.8.20
-
-# Apply database migrations
-python manage.py migrate
-
-# Start the API server (default: http://localhost:8000)
-python manage.py runserver
-```
-
-> **Tip:** A convenience script is available:
-> ```bash
-> bash backend/setup.sh
-> ```
-
-#### Environment Variables (optional)
-
-| Variable | Default | Description |
-|---|---|---|
-| `DJANGO_SECRET_KEY` | dev-only default | Django secret key — **set in production** |
-| `DJANGO_DEBUG` | `True` | Set to `False` in production |
-| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated allowed hosts |
-
----
-
-### Frontend Setup
+- Node.js 18+ (20+ recommended)
+- `finsec-guardian-api` running locally (see that repo's README)
 
 ### Install
 
 ```bash
 npm install
-```
-
-Copy `.env.example` to `.env` (already points to `http://localhost:8000/api`):
-
-```bash
-cp .env.example .env
 ```
 
 ### Run Development Server
@@ -203,17 +200,10 @@ npm run preview
 npm run lint
 ```
 
-### Unit/Component Tests
+### Unit / Component Tests
 
 ```bash
 npm run test
-```
-
-### Backend Tests
-
-```bash
-cd backend
-python manage.py test scanner.tests -v 2
 ```
 
 ### Watch Tests
@@ -222,66 +212,27 @@ python manage.py test scanner.tests -v 2
 npm run test:watch
 ```
 
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/scanner/scans/` | List all scans |
-| POST | `/api/scanner/scans/` | Submit contract for Slither analysis |
-| GET | `/api/scanner/scans/{id}/` | Get scan details + findings |
-| GET | `/api/scanner/scans/{id}/findings/` | Get findings for a scan |
-| GET | `/api/threats/threats/` | List threat model entries |
-| POST | `/api/threats/threats/` | Create a threat |
-| PATCH | `/api/threats/threats/{id}/` | Update a threat |
-| DELETE | `/api/threats/threats/{id}/` | Delete a threat |
-| GET | `/api/audit/events/` | List audit events (supports `?search=`) |
-| GET | `/api/records/records/` | List tamper-proof records |
-| POST | `/api/records/records/` | Add a new record (server hashes + chains) |
-| GET | `/api/records/records/verify/` | Verify entire hash chain integrity |
-
-
-## Security Scanner Scope (Planned)
-
-The intended scanner scope includes:
-
-- SWC-aligned rule detection
-- Reentrancy, access control, arithmetic safety, DoS patterns
-- Compiler/version hygiene checks
-- Severity scoring and remediation guidance
-- JSON report export and CI integration
-
-Suggested implementation path:
-
-1. Add a backend analysis service (Node/Python)
-2. Integrate Slither or Mythril for first-pass findings
-3. Normalize findings to a shared schema
-4. Replace mock findings in the scanner page with API responses
-5. Persist scan history and audit events
+---
 
 ## Known Limitations
 
-- No real static analysis pipeline yet
-- No file upload parser or multi-contract project support
-- No authentication backend
-- No persistent storage/database
-- No blockchain RPC, wallet, or contract deployment integration
-- Most pages currently use in-memory/static data
+- No file upload parser (multi-file / Hardhat project support not yet implemented)
+- Tamper-proof records use a client-side SHA-256 simulation — no on-chain anchoring yet
+- Dashboard metrics are derived from persisted scan data; no real-time streaming
 
-## Recommended Next Milestones
+## Roadmap
 
-1. Build a real scanner API and connect the scanner UI
-2. Add finding suppression/baselines and report export
-3. Add user auth + RBAC + persistent audit storage
-4. Add on-chain anchoring for tamper-proof records
-5. Add CI mode for repository-based contract scans
+1. Public `/free-audit` scanner — unauthenticated contract scan with limited results
+2. File upload and multi-contract project support
+3. On-chain record anchoring (EVM compatible)
+4. CI mode — GitHub Action / CLI for repository-based scans
+5. Finding suppression and scan baseline diffing
+6. Report export (PDF / JSON)
+
+---
 
 ## Vision
 
-FinSec Guardian is positioned as a unified smart contract security operations console:
+FinSec Guardian is a unified smart contract security operations console — and a demonstration that security tooling must itself be built securely. The platform practises the OWASP principles it teaches: hardened HTTP headers, strict authentication, input validation at every boundary, tamper-evident audit records, and active bot mitigation.
 
-- Analyze Solidity contracts
-- Track threat posture over time
-- Preserve tamper-evident security events
-- Support audit and compliance workflows
-
-This repository currently delivers the interface foundation and interaction model needed to evolve into that full platform.
+Built on [OWASP SC Top 10](https://scs.owasp.org/sctop10/) · Powered by [Slither](https://github.com/crytic/slither) · Contact [datasubjectsrights@finsec.com](mailto:datasubjectsrights@finsec.com)

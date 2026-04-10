@@ -2,6 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/finsec-guardian-favicon.svg" />
+    <link rel="icon" type="image/png" href="/finsec-guardian-favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FinSec Guardian</title>
     <meta
@@ -9,6 +11,33 @@
       content="FinSec Guardian – Financial Security Platform"
     />
     <meta name="author" content="FinSec Guardian" />
+
+    <!-- Security: Content-Security-Policy
+         script-src 'self'        — only same-origin scripts (no inline or external JS)
+         style-src  'self' 'unsafe-inline' — Tailwind needs inline styles
+         img-src    'self' data: https:    — allow HTTPS images (OG previews etc.)
+         connect-src includes ws: for Vite HMR in dev; tighten to your API host in production
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        script-src  'self';
+        style-src   'self' 'unsafe-inline';
+        img-src     'self' data: https:;
+        connect-src 'self' http://localhost:8000 http://127.0.0.1:8000 ws://localhost:5173 ws://localhost:5174;
+        font-src    'self';
+        object-src  'none';
+        base-uri    'self';
+        form-action 'self';
+      "
+    />
+    <!-- Prevent MIME-type sniffing -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+    <!-- Restrict referrer information sent to third parties -->
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <!-- Tell well-behaved bots not to index auth / API pages -->
+    <meta name="robots" content="index, follow, noarchive" />
 
     <meta property="og:title" content="FinSec Guardian" />
     <meta

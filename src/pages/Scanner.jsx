@@ -2,18 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { scannerApi } from "@/lib/api";
-import { Search, AlertTriangle, Code2, Play } from "lucide-react";
+import {
+  Search, Code2, Play, Download, Shield, ShieldAlert,
+  ShieldCheck, ShieldX, ChevronDown, ChevronRight, FileText, Clock
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-
-const TOOLS = [
-  { value: 'slither', label: 'Slither', description: 'Static analysis (fast)' },
-  { value: 'mythril', label: 'Mythril', description: 'Symbolic execution' },
-  { value: 'echidna', label: 'Echidna', description: 'Fuzzing / properties' },
-];
 
 const sampleContract = `// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
@@ -42,49 +39,221 @@ contract VulnerableVault {
     }
 }`;
 
-const severityStyles = {
+// ─── Severity config ──────────────────────────────────────────────────────────
+
+const SEV = {
   critical: {
-    badge: "bg-destructive text-destructive-foreground",
-    border: "border-l-destructive"
+    badge: "bg-red-600 text-white",
+    border: "border-l-red-500",
+    bar: "bg-red-500",
+    icon: ShieldX,
+    label: "Critical",
+    order: 0,
   },
   high: {
-    badge: "bg-warning text-warning-foreground",
-    border: "border-l-warning"
+    badge: "bg-orange-500 text-white",
+    border: "border-l-orange-500",
+    bar: "bg-orange-500",
+    icon: ShieldAlert,
+    label: "High",
+    order: 1,
   },
   medium: {
-    badge: "bg-info text-info-foreground",
-    border: "border-l-info"
+    badge: "bg-yellow-500 text-black",
+    border: "border-l-yellow-500",
+    bar: "bg-yellow-500",
+    icon: Shield,
+    label: "Medium",
+    order: 2,
   },
   low: {
-    badge: "bg-success text-success-foreground",
-    border: "border-l-success"
+    badge: "bg-blue-500 text-white",
+    border: "border-l-blue-500",
+    bar: "bg-blue-500",
+    icon: ShieldCheck,
+    label: "Low",
+    order: 3,
   },
   info: {
     badge: "bg-muted text-muted-foreground",
-    border: "border-l-muted-foreground"
-  }
+    border: "border-l-muted-foreground",
+    bar: "bg-muted-foreground",
+    icon: Shield,
+    label: "Info",
+    order: 4,
+  },
 };
+
+// ─── Risk scoring ─────────────────────────────────────────────────────────────
+
+const WEIGHT = { critical: 25, high: 15, medium: 7, low: 3, info: 0 };
+
+function calcRiskScore(findings) {
+  const penalty = findings.reduce((acc, f) => acc + (WEIGHT[f.severity] || 0), 0);
+  return Math.max(0, 100 - penalty);
+}
+
+function riskGrade(score) {
+  if (score >= 90) return { grade: "A", label: "Excellent", color: "text-green-400", ring: "ring-green-500" };
+  if (score >= 75) return { grade: "B", label: "Good", color: "text-lime-400", ring: "ring-lime-500" };
+  if (score >= 60) return { grade: "C", label: "Fair", color: "text-yellow-400", ring: "ring-yellow-500" };
+  if (score >= 40) return { grade: "D", label: "Needs Work", color: "text-orange-400", ring: "ring-orange-500" };
+  return { grade: "F", label: "Critical Risk", color: "text-red-400", ring: "ring-red-500" };
+}
+
+// ─── Download helper ──────────────────────────────────────────────────────────
+
+function buildTextReport({ scanMeta, findings }) {
+  const score = calcRiskScore(findings);
+  const { grade, label } = riskGrade(score);
+  const counts = ["critical", "high", "medium", "low", "info"].map(
+    s => `  ${s.toUpperCase().padEnd(10)}: ${findings.filter(f => f.severity === s).length}`
+  ).join("\n");
+
+  const findingBlocks = ["critical", "high", "medium", "low", "info"].flatMap(sev => {
+    const group = findings.filter(f => f.severity === sev);
+    return group.map((f, i) => [
+      `[${sev.toUpperCase()}] ${f.title}${f.id ? ` (${f.id})` : ""}${f.line != null ? ` — Line ${f.line}` : ""}`,
+      `  Description : ${f.description || "N/A"}`,
+      f.recommendation ? `  Fix         : ${f.recommendation}` : null,
+    ].filter(Boolean).join("\n"));
+  });
+
+  return [
+    "╔══════════════════════════════════════════════════════════╗",
+    "║      FINSEC GUARDIAN — SMART CONTRACT AUDIT REPORT      ║",
+    "╚══════════════════════════════════════════════════════════╝",
+    "",
+    `Contract    : ${scanMeta.contractName}`,
+    `Scan ID     : #${scanMeta.id}`,
+    `Date        : ${scanMeta.date}`,
+    `Risk Score  : ${score}/100 — Grade ${grade} (${label})`,
+    "",
+    "── SUMMARY ─────────────────────────────────────────────────",
+    counts,
+    `  ${"TOTAL".padEnd(10)}: ${findings.length}`,
+    "",
+    "── FINDINGS ────────────────────────────────────────────────",
+    findings.length === 0 ? "  No vulnerabilities found." : "",
+    ...findingBlocks.flatMap(b => [b, ""]),
+    "────────────────────────────────────────────────────────────",
+    "Powered by Slither & Mythril | Generated by FInSec Guardian",
+  ].join("\n");
+}
+
+function downloadReport(scanMeta, findings) {
+  const text = buildTextReport({ scanMeta, findings });
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `audit-report-${scanMeta.contractName.replace(/\s+/g, "_")}-${scanMeta.id}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function FindingCard({ finding }) {
+  const [open, setOpen] = useState(false);
+  const cfg = SEV[finding.severity] || SEV.info;
+
+  return (
+    <div
+      className={`rounded border border-border bg-secondary/20 border-l-4 ${cfg.border} cursor-pointer select-none`}
+      onClick={() => setOpen(o => !o)}
+    >
+      <div className="flex items-center justify-between p-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Badge className={`${cfg.badge} font-mono text-xs shrink-0`}>
+            {cfg.label}
+          </Badge>
+          {finding.id && (
+            <span className="text-xs font-mono text-muted-foreground shrink-0">{finding.id}</span>
+          )}
+          <span className="text-sm font-medium truncate">{finding.title}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 ml-2">
+          {finding.line != null && (
+            <span className="text-xs font-mono text-muted-foreground">L{finding.line}</span>
+          )}
+          {open
+            ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+        </div>
+      </div>
+      {open && (
+        <div className="px-3 pb-3 space-y-2 border-t border-border/50 pt-2">
+          {finding.description && (
+            <p className="text-xs text-muted-foreground leading-relaxed">{finding.description}</p>
+          )}
+          {finding.recommendation && (
+            <div className="rounded bg-primary/5 border border-primary/20 p-2">
+              <p className="text-xs font-mono text-primary">
+                <span className="font-bold">Fix: </span>{finding.recommendation}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SeverityBar({ label, count, total, cfg }) {
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-16 text-xs font-mono text-muted-foreground shrink-0">{label}</span>
+      <div className="flex-1 bg-secondary/40 rounded-full h-1.5">
+        <div className={`${cfg.bar} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-6 text-xs font-mono text-right text-foreground shrink-0">{count}</span>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 const Scanner = () => {
   const [code, setCode] = useState(sampleContract);
-  const [tool, setTool] = useState('slither');
   const [progress, setProgress] = useState(0);
   const [findings, setFindings] = useState([]);
+  const [scanMeta, setScanMeta] = useState(null);
   const [scanned, setScanned] = useState(false);
   const progressIntervalRef = useRef(null);
 
   const mutation = useMutation({
-    mutationFn: () => scannerApi.createScan({ source_code: code, contract_name: 'Unnamed', tool }),
+    mutationFn: () => scannerApi.createScan({ source_code: code, contract_name: "Unnamed" }),
     onSuccess: (data) => {
-      const rawFindings = data.findings || [];
-      setFindings(rawFindings.map(f => ({
+      const rawFindings = (data.findings || []).map(f => ({
         id: f.swc_id || String(f.id),
         line: f.line_number,
         severity: f.severity,
         title: f.title,
         description: f.description,
         recommendation: f.recommendation,
-      })));
+      }));
+
+      // Sort by severity order
+      rawFindings.sort((a, b) =>
+        (SEV[a.severity]?.order ?? 5) - (SEV[b.severity]?.order ?? 5)
+      );
+
+      setFindings(rawFindings);
+      setScanMeta({
+        id: data.id,
+        contractName: data.contract_name || "Unnamed",
+        date: data.completed_at
+          ? new Date(data.completed_at).toLocaleString()
+          : new Date().toLocaleString(),
+        totalFindings: data.total_findings ?? rawFindings.length,
+        criticalCount: data.critical_count ?? 0,
+        highCount: data.high_count ?? 0,
+        mediumCount: data.medium_count ?? 0,
+        lowCount: data.low_count ?? 0,
+        infoCount: data.info_count ?? 0,
+      });
       setProgress(100);
       setScanned(true);
       if (progressIntervalRef.current) {
@@ -93,7 +262,7 @@ const Scanner = () => {
       }
     },
     onError: (error) => {
-      toast.error(error.message || 'Scan failed');
+      toast.error(error.message || "Scan failed");
       setProgress(0);
       setScanned(false);
       if (progressIntervalRef.current) {
@@ -105,6 +274,7 @@ const Scanner = () => {
 
   const handleScan = () => {
     setFindings([]);
+    setScanMeta(null);
     setProgress(0);
     setScanned(false);
 
@@ -119,18 +289,18 @@ const Scanner = () => {
 
   useEffect(() => {
     return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
   }, []);
 
   const scanning = mutation.isPending;
-  const criticalCount = findings.filter(f => f.severity === "critical").length;
-  const highCount = findings.filter(f => f.severity === "high").length;
+  const score = scanned ? calcRiskScore(findings) : null;
+  const gradeInfo = score != null ? riskGrade(score) : null;
+  const total = findings.length;
 
   return (
     <div className="space-y-6">
+      {/* Page title */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">
           Contract <span className="text-gradient-primary">Scanner</span>
@@ -139,7 +309,11 @@ const Scanner = () => {
           Static analysis for Solidity smart contracts — OWASP SWC Registry
         </p>
       </div>
+
+      {/* Editor + Report grid */}
       <div className="grid gap-6 lg:grid-cols-2">
+
+        {/* ── Left: code editor ── */}
         <Card className="border-border bg-card">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -155,28 +329,12 @@ const Scanner = () => {
                 Load Example
               </Button>
             </div>
-            <div className="flex gap-2 pt-2">
-              {TOOLS.map(t => (
-                <button
-                  key={t.value}
-                  onClick={() => setTool(t.value)}
-                  className={`flex-1 rounded border px-2 py-1.5 text-xs font-mono transition-colors ${
-                    tool === t.value
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/50'
-                  }`}
-                >
-                  <div className="font-semibold">{t.label}</div>
-                  <div className="text-[10px] opacity-70">{t.description}</div>
-                </button>
-              ))}
-            </div>
           </CardHeader>
           <CardContent>
             <Textarea
               value={code}
               onChange={e => setCode(e.target.value)}
-              className="min-h-[400px] font-mono text-xs bg-secondary/30 border-border resize-none leading-relaxed"
+              className="min-h-[220px] sm:min-h-[400px] font-mono text-xs bg-secondary/30 border-border resize-none leading-relaxed"
               placeholder="// Paste your Solidity contract here..."
             />
             <Button
@@ -184,97 +342,121 @@ const Scanner = () => {
               disabled={scanning || !code.trim()}
               className="mt-4 w-full gradient-primary text-primary-foreground font-mono font-semibold"
             >
-              {scanning ? (
-                <>Scanning...</>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" /> Run Security Analysis
-                </>
-              )}
+              {scanning ? <>Scanning…</> : <><Play className="h-4 w-4 mr-2" /> Run Security Analysis</>}
             </Button>
             {scanning && (
               <div className="mt-3 space-y-1">
                 <Progress value={progress} className="h-1.5" />
                 <p className="text-xs font-mono text-muted-foreground">
-                  Analyzing patterns... {progress}%
+                  Analyzing patterns… {progress}%
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card">
+        {/* ── Right: Audit Report ── */}
+        <Card className="border-border bg-card flex flex-col">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" /> Findings
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <FileText className="h-4 w-4" /> Audit Report
+              </CardTitle>
               {scanned && (
-                <Badge variant="secondary" className="ml-2 font-mono">
-                  {findings.length} issues
-                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-mono text-xs gap-1"
+                  onClick={() => downloadReport(scanMeta, findings)}
+                >
+                  <Download className="h-3.5 w-3.5" /> Download
+                </Button>
               )}
-            </CardTitle>
+            </div>
           </CardHeader>
-          <CardContent>
+
+          <CardContent className="flex-1 overflow-hidden">
+            {/* Empty state */}
             {!scanned && !scanning && (
-              <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
+              <div className="flex flex-col items-center justify-center h-[220px] sm:h-[400px] text-muted-foreground">
                 <Search className="h-12 w-12 mb-3 opacity-30" />
                 <p className="font-mono text-sm">Paste a contract and run the scanner</p>
               </div>
             )}
-            {scanned && (
-              <div className="space-y-4">
-                <div className="flex gap-2 flex-wrap">
-                  {criticalCount > 0 && (
-                    <Badge className="bg-destructive text-destructive-foreground font-mono">
-                      {criticalCount} Critical
-                    </Badge>
-                  )}
-                  {highCount > 0 && (
-                    <Badge className="bg-warning text-warning-foreground font-mono">
-                      {highCount} High
-                    </Badge>
-                  )}
-                  <Badge className="bg-info text-info-foreground font-mono">
-                    {findings.filter(f => f.severity === "medium").length} Medium
-                  </Badge>
-                  <Badge className="bg-success text-success-foreground font-mono">
-                    {findings.filter(f => f.severity === "low").length} Low
-                  </Badge>
-                </div>
-                <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
-                  {findings.map(finding => (
-                    <div
-                      key={finding.id}
-                      className={`rounded-md border border-border bg-secondary/20 p-3 border-l-4 ${(severityStyles[finding.severity] || severityStyles.info).border}`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            className={(severityStyles[finding.severity] || severityStyles.info).badge}
-                            variant="secondary"
-                          >
-                            {finding.severity}
-                          </Badge>
-                          <span className="text-xs font-mono text-muted-foreground">{finding.id}</span>
-                        </div>
-                        {finding.line != null && (
-                          <span className="text-xs font-mono text-muted-foreground">Line {finding.line}</span>
-                        )}
-                      </div>
-                      <h4 className="text-sm font-semibold mt-1">{finding.title}</h4>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{finding.description}</p>
-                      {finding.recommendation && (
-                        <div className="mt-2 rounded bg-primary/5 border border-primary/20 p-2">
-                          <p className="text-xs font-mono text-primary">✓ {finding.recommendation}</p>
-                        </div>
-                      )}
+
+            {scanned && scanMeta && (
+              <div className="space-y-4 overflow-y-auto max-h-[500px] pr-1">
+
+                {/* ── Report header ── */}
+                <div className="rounded-lg border border-border bg-secondary/20 p-4 flex items-center gap-4">
+                  {/* Grade ring */}
+                  <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ring-4 ${gradeInfo.ring} bg-card`}>
+                    <span className={`text-3xl font-black ${gradeInfo.color}`}>{gradeInfo.grade}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-lg font-bold ${gradeInfo.color}`}>{gradeInfo.label}</p>
+                    <p className="text-sm text-muted-foreground font-mono">
+                      Risk Score: <span className="text-foreground font-semibold">{score}/100</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">
+                      {scanMeta.contractName} · #{scanMeta.id}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground font-mono">
+                      <Clock className="h-3 w-3" />
+                      {scanMeta.date}
                     </div>
+                  </div>
+                </div>
+
+                {/* ── Severity distribution ── */}
+                <div className="rounded-lg border border-border bg-secondary/10 p-3 space-y-2">
+                  <p className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                    Severity Distribution
+                  </p>
+                  {["critical","high","medium","low","info"].map(sev => (
+                    <SeverityBar
+                      key={sev}
+                      label={SEV[sev].label}
+                      count={findings.filter(f => f.severity === sev).length}
+                      total={total}
+                      cfg={SEV[sev]}
+                    />
                   ))}
+                  <div className="pt-1 border-t border-border/50">
+                    <div className="flex items-center gap-2">
+                      <span className="w-16 text-xs font-mono font-semibold text-foreground shrink-0">Total</span>
+                      <div className="flex-1" />
+                      <span className="w-6 text-xs font-mono text-right font-bold text-foreground shrink-0">{total}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Findings list ── */}
+                <div className="space-y-2">
+                  <p className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider">
+                    Findings
+                  </p>
+                  {findings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                      <ShieldCheck className="h-10 w-10 mb-2 text-green-500 opacity-70" />
+                      <p className="text-sm font-mono">No vulnerabilities detected</p>
+                    </div>
+                  ) : (
+                    findings.map((f, i) => <FindingCard key={`${f.id}-${i}`} finding={f} />)
+                  )}
+                </div>
+
+                {/* ── Footer ── */}
+                <div className="text-center pt-2 border-t border-border/40">
+                  <p className="text-xs text-muted-foreground font-mono">
+                    Powered by <span className="text-primary">Slither</span> &amp; <span className="text-primary">Mythril</span>
+                  </p>
                 </div>
               </div>
             )}
           </CardContent>
         </Card>
+
       </div>
     </div>
   );

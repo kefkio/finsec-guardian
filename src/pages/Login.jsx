@@ -2,97 +2,143 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Shield, X, ExternalLink, ChevronRight, Zap, BarChart3, FileSearch,
-  Bug, FlaskConical, BookOpen, Menu, Github, Bell, GitBranch,
-  TrendingUp, Sparkles, Lock, Eye, Code2, ArrowRight, CheckCircle2
+  Bug, AlertOctagon, BookOpen, Menu, Activity, Code2,
+  TrendingUp, Sparkles, Lock, Eye, ShieldAlert, ArrowRight, CheckCircle2,
+  ScrollText, GitBranch, ScanLine, Cpu, Fingerprint, ClipboardList,
+  Sun, Moon
 } from "lucide-react";
 import { authApi } from "@/lib/api";
+import { useTheme } from "@/hooks/use-theme";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-/* ── Slack SVG icon (no lucide equivalent) ──────────────────────────── */
-const SlackIcon = ({ className }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-    <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/>
-  </svg>
-);
-
-const INTEGRATION_STEPS = [
+const PLATFORM_FEATURES = [
   {
-    icon: Github,
-    color: "text-foreground",
-    bg: "bg-muted",
-    title: "Connect GitHub Repositories",
-    description: "Seamlessly link any public or private GitHub repo. DeFiGuard watches every push, PR, and release automatically.",
-    badge: "GitHub",
+    icon: ScanLine,
+    color: "text-emerald-500",
+    bg: "bg-emerald-500/10",
+    title: "Slither-Powered Static Analysis",
+    description: "Paste or upload any Solidity contract and get a deep static analysis via Slither — the industry-leading smart contract analysis framework from Trail of Bits.",
+    badge: "Core Engine",
   },
   {
-    icon: SlackIcon,
-    color: "text-[#4A154B]",
-    bg: "bg-[#4A154B]/10",
-    title: "Real-Time Slack Alerts",
-    description: "Pipe critical vulnerability findings straight to your team's Slack workspace the moment a scan completes.",
-    badge: "Slack",
+    icon: ShieldAlert,
+    color: "text-rose-500",
+    bg: "bg-rose-500/10",
+    title: "OWASP SC Top 10 Classification",
+    description: "Every vulnerability is mapped to the OWASP Smart Contract Top 10, giving your security and dev teams a shared language to prioritise fixes by real-world risk.",
+    badge: "OWASP SC",
   },
   {
-    icon: GitBranch,
-    color: "text-cyan-500",
-    bg: "bg-cyan-500/10",
-    title: "Automated Scan Triggers",
-    description: "Configure branch-level triggers — scan on push, on PR open, or on a schedule. Zero manual intervention required.",
-    badge: "CI/CD",
+    icon: Bug,
+    color: "text-amber-500",
+    bg: "bg-amber-500/10",
+    title: "80+ Vulnerability Detectors",
+    description: "From reentrancy and integer overflow to unprotected upgrades and arbitrary send — FinSec Guardian runs 80+ detectors covering the full SWC Registry.",
+    badge: "Detectors",
   },
   {
     icon: TrendingUp,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-    title: "Code Quality Trend Monitoring",
-    description: "Track vulnerability counts, severity trends, and fix velocity across every release. Spot regressions before they ship.",
-    badge: "Analytics",
+    color: "text-cyan-500",
+    bg: "bg-cyan-500/10",
+    title: "STRIDE Threat Modelling",
+    description: "Model your contracts against the STRIDE threat framework. Assess spoofing, tampering, repudiation, info disclosure, DoS, and privilege escalation risks before deployment.",
+    badge: "Threat Model",
   },
   {
-    icon: Sparkles,
+    icon: ScrollText,
     color: "text-violet-500",
     bg: "bg-violet-500/10",
-    title: "AI-Powered Insights",
-    description: "Our AI engine correlates findings with historical data to surface root causes and suggest targeted refactors.",
-    badge: "AI",
+    title: "Tamper-Proof Audit Reports",
+    description: "Every scan produces an immutable, time-stamped audit report. SHA-256 hashed findings give auditors and regulators a verifiable security record.",
+    badge: "Audit Trail",
   },
   {
-    icon: Eye,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-    title: "Unparalleled Codebase Visibility",
-    description: "Dependency graphs, hot-spot heatmaps, and cross-contract call analysis give you the full picture every time.",
-    badge: "Insights",
+    icon: Code2,
+    color: "text-sky-500",
+    bg: "bg-sky-500/10",
+    title: "Multi-Version Solidity Support",
+    description: "Analyse contracts written in any Solidity version from 0.4.x through 0.8.x. FinSec Guardian automatically selects the right compiler to match your pragma.",
+    badge: "Solidity",
   },
 ];
 
 const TRUST_BADGES = [
   { label: "Slither-powered analysis" },
   { label: "OWASP SC Top 10 aligned" },
-  { label: "GitHub & Slack native" },
-  { label: "SOC 2-ready audit logs" },
+  { label: "80+ vulnerability detectors" },
+  { label: "Tamper-proof audit trail" },
 ];
 
 const NAV_ITEMS = [
-  { label: "QuickScan",     href: "#quickscan",  icon: Zap },
-  { label: "Pricing",       href: "#pricing",    icon: BarChart3 },
-  { label: "Audit Reports", href: "#reports",    icon: FileSearch },
-  { label: "Detectors",     href: "#detectors",  icon: Bug },
-  { label: "Web3 Hacklab",  href: "#hacklab",    icon: FlaskConical },
-  { label: "Resources",     href: "#resources",  icon: BookOpen },
+  { label: "How It Works",    href: "#why",          icon: Zap },
+  { label: "Features",        href: "#platform",     icon: BarChart3 },
+  { label: "Risk Coverage",   href: "#why",          icon: FileSearch },
+  { label: "Free Audit",      href: "#free-audit",   icon: AlertOctagon },
+  { label: "OWASP SC Top 10", href: "https://scs.owasp.org/sctop10/", icon: Bug },
+  { label: "Resources",       href: "https://github.com/crytic/slither", icon: BookOpen },
+];
+
+const VALUE_PROPS = [
+  {
+    icon: FileSearch,
+    color: "text-emerald-500",
+    bg: "bg-emerald-500/10",
+    border: "hover:border-emerald-500/40",
+    title: "Comprehensive Evaluation",
+    badge: "Analysis",
+    points: [
+      "Deep static analysis of Solidity smart contracts",
+      "Detects reentrancy, overflow, access control flaws & more",
+      "Findings classified per OWASP Smart Contract Top 10",
+    ],
+  },
+  {
+    icon: TrendingUp,
+    color: "text-cyan-500",
+    bg: "bg-cyan-500/10",
+    border: "hover:border-cyan-500/40",
+    title: "Actionable Insights",
+    badge: "Reports",
+    points: [
+      "Structured reports with severity-ranked findings",
+      "SWC ID, threat classification, and impact per issue",
+      "Specific remediation recommendations per vulnerability",
+    ],
+  },
+  {
+    icon: Lock,
+    color: "text-violet-500",
+    bg: "bg-violet-500/10",
+    border: "hover:border-violet-500/40",
+    title: "Non-Intrusive Analysis",
+    badge: "Zero Setup",
+    points: [
+      "No deployment needed — paste source code directly",
+      "Works on undeployed contracts before launch",
+      "Zero changes to your existing codebase or toolchain",
+    ],
+  },
 ];
 
 const Login = () => {
   const navigate = useNavigate();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [bannerVisible, setBannerVisible] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [tab, setTab] = useState("login");
   const [loading, setLoading] = useState(false);
+  const [auditConsent, setAuditConsent] = useState(false);
+  const [auditRequested, setAuditRequested] = useState(false);
   const [form, setForm] = useState({ username: "", email: "", password: "" });
+
+  const scrollToAuth = (t = "login") => {
+    setTab(t);
+    document.getElementById("auth-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -128,7 +174,7 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-background flex flex-col">
 
-      {/* ── OWASP SC Top 10 Banner ───────────────────────────────────── */}
+      {/* ── OWASP Banner ─────────────────────────────────────────────── */}
       {bannerVisible && (
         <div className="relative bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 text-white text-sm">
           <a
@@ -163,7 +209,7 @@ const Login = () => {
               <Shield className="h-5 w-5 text-white" />
             </div>
             <span className="text-base font-bold tracking-tight text-foreground">
-              DeFi<span className="text-gradient-primary">Guard</span>
+              FinSec<span className="text-gradient-primary">Guardian</span>
             </span>
           </a>
 
@@ -173,6 +219,8 @@ const Login = () => {
               <a
                 key={label}
                 href={href}
+                target={href.startsWith('http') ? '_blank' : undefined}
+                rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
                 className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
               >
                 {label}
@@ -185,15 +233,24 @@ const Login = () => {
             <Button
               variant="ghost"
               size="sm"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+              className="p-2 text-muted-foreground hover:text-foreground"
+            >
+              {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               className="font-mono text-sm"
-              onClick={() => setTab("login")}
+              onClick={() => scrollToAuth("login")}
             >
               Sign in
             </Button>
             <Button
               size="sm"
               className="gradient-primary text-primary-foreground font-mono font-semibold"
-              onClick={() => setTab("register")}
+              onClick={() => scrollToAuth("register")}
             >
               Get started <ChevronRight className="h-3.5 w-3.5 ml-1" />
             </Button>
@@ -213,19 +270,24 @@ const Login = () => {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-border bg-background px-4 pb-4 pt-2 space-y-1">
             {NAV_ITEMS.map(({ label, href, icon: Icon }) => (
-              <a
-                key={label}
-                href={href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </a>
+                <a
+                  key={label}
+                  href={href}
+                  target={href.startsWith('http') ? '_blank' : undefined}
+                  rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </a>
             ))}
             <div className="pt-2 flex gap-2">
-              <Button variant="outline" size="sm" className="flex-1 font-mono" onClick={() => { setTab("login"); setMobileMenuOpen(false); }}>Sign in</Button>
-              <Button size="sm" className="flex-1 gradient-primary text-primary-foreground font-mono" onClick={() => { setTab("register"); setMobileMenuOpen(false); }}>Get started</Button>
+              <Button variant="outline" size="sm" className="flex-1 font-mono" onClick={() => { scrollToAuth("login"); setMobileMenuOpen(false); }}>Sign in</Button>
+              <Button size="sm" className="flex-1 gradient-primary text-primary-foreground font-mono" onClick={() => { scrollToAuth("register"); setMobileMenuOpen(false); }}>Get started</Button>
+              <Button variant="outline" size="sm" onClick={toggleTheme} aria-label="Toggle theme" className="px-3">
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
         )}
@@ -245,8 +307,9 @@ const Login = () => {
             <span className="text-gradient-primary">Deploy safer.</span>
           </h1>
           <p className="text-base text-muted-foreground max-w-lg mx-auto leading-relaxed">
-            Static analysis, threat modelling, and tamper-proof audit reports for
-            Solidity smart contracts — powered by Slither and the OWASP SC Top 10.
+            Paste any Solidity contract and get a full static analysis report in seconds —
+            powered by Slither, classified against the OWASP Smart Contract Top 10, with
+            tamper-proof audit records built in.
           </p>
         </div>
 
@@ -352,29 +415,92 @@ const Login = () => {
         </div>
       </main>
 
+      {/* ── Value Props Section ──────────────────────────────────────── */}
+      <section id="why" className="w-full py-20 px-4">
+        <div className="mx-auto max-w-6xl space-y-12">
+
+          {/* Heading */}
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-mono text-muted-foreground">
+              <Shield className="h-3.5 w-3.5 text-emerald-500" />
+              Why FinSec Guardian
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+              Catch vulnerabilities<br />
+              <span className="text-gradient-primary">before they're exploited.</span>
+            </h2>
+            <p className="text-muted-foreground text-base max-w-xl mx-auto leading-relaxed">
+              Paste your Solidity source code and get a full vulnerability report —
+              OWASP SC Top 10 classified findings, SWC IDs, severity ratings,
+              and concrete remediation steps.
+            </p>
+          </div>
+
+          {/* Three pillars */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {VALUE_PROPS.map(({ icon: Icon, color, bg, border, title, badge, points }) => (
+              <div
+                key={title}
+                className={`relative rounded-xl border border-border bg-card p-8 space-y-5 transition-all duration-200 hover:shadow-lg ${border}`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${bg}`}>
+                    <Icon className={`h-6 w-6 ${color}`} />
+                  </div>
+                  <span className="text-[10px] font-mono font-semibold uppercase tracking-wider text-muted-foreground border border-border rounded-full px-2 py-0.5">
+                    {badge}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold text-foreground">{title}</h3>
+                <ul className="space-y-3">
+                  {points.map((pt) => (
+                    <li key={pt} className="flex items-start gap-2.5 text-sm text-muted-foreground">
+                      <CheckCircle2 className={`h-4 w-4 shrink-0 mt-0.5 ${color}`} />
+                      <span>{pt}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA nudge */}
+          <div className="flex justify-center">
+            <Button
+              size="sm"
+              className="gradient-primary text-primary-foreground font-mono font-semibold"
+              onClick={() => document.getElementById('auth-card')?.scrollIntoView({ behavior: 'smooth' })}
+            >
+              Get started — it's free <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* ── Integrations & Features Section ─────────────────────────── */}
-      <section className="w-full bg-muted/30 border-y border-border py-20 px-4">
+      <section id="platform" className="w-full bg-muted/30 border-y border-border py-20 px-4">
         <div className="mx-auto max-w-6xl space-y-14">
 
           {/* Section heading */}
           <div className="text-center space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs font-mono text-muted-foreground">
-              <Sparkles className="h-3.5 w-3.5 text-violet-500" />
-              Integrations &amp; Intelligence
+              <Activity className="h-3.5 w-3.5 text-emerald-500" />
+              Platform Capabilities
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
-              Your entire security workflow,<br />
-              <span className="text-gradient-primary">fully automated.</span>
+              One contract scan.<br />
+              <span className="text-gradient-primary">Your full vulnerability picture.</span>
             </h2>
             <p className="text-muted-foreground text-base max-w-xl mx-auto">
-              Connect GitHub and Slack in seconds. Configure scan triggers, track quality
-              trends with AI, and gain unparalleled codebase insights — all in one platform.
+              FinSec Guardian runs Slither static analysis against your Solidity contracts,
+              maps every finding to the OWASP SC Top 10, and delivers structured reports
+              with actionable remediation — in seconds.
             </p>
           </div>
 
           {/* Feature cards grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {INTEGRATION_STEPS.map(({ icon: Icon, color, bg, title, description, badge }) => (
+            {PLATFORM_FEATURES.map(({ icon: Icon, color, bg, title, description, badge }) => (
               <div
                 key={title}
                 className="group relative rounded-xl border border-border bg-background p-6 space-y-4 hover:border-primary/40 hover:shadow-md transition-all duration-200"
@@ -414,23 +540,126 @@ const Login = () => {
           {/* CTA row */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-mono text-muted-foreground">
-              <Github className="h-4 w-4" />
-              <span>github.com/your-org/your-repo</span>
+              <Code2 className="h-4 w-4 text-emerald-500" />
+              <span>Paste Solidity contract</span>
             </div>
-            <div className="flex items-center gap-1.5 text-muted-foreground text-sm font-mono">
-              <span>+</span>
-              <SlackIcon className="h-4 w-4 text-[#4A154B]" />
-              <span>#security-alerts</span>
+            <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-mono text-muted-foreground">
+              <ScrollText className="h-4 w-4 text-cyan-500" />
+              <span>Get vulnerability report</span>
             </div>
             <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
             <Button
               size="sm"
               className="gradient-primary text-primary-foreground font-mono font-semibold"
-              onClick={() => document.getElementById('auth-card')?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => document.getElementById('free-audit')?.scrollIntoView({ behavior: 'smooth' })}
             >
               <Zap className="h-3.5 w-3.5 mr-1.5" />
-              Start free — connect now
+              Try free scan
             </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Free Audit CTA Section ──────────────────────────────────── */}
+      <section id="free-audit" className="w-full py-20 px-4">
+        <div className="mx-auto max-w-2xl">
+          <div className="relative rounded-2xl border border-border bg-card p-8 sm:p-12 space-y-8 overflow-hidden">
+            {/* Decorative glow */}
+            <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+
+            {/* Heading */}
+            <div className="relative space-y-3 text-center">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-mono text-muted-foreground">
+                <Shield className="h-3.5 w-3.5 text-emerald-500" />
+                Free Security Assessment
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+                Sign Up to Discover Your{" "}
+                <span className="text-gradient-primary">Critical Security Risks</span>
+              </h2>
+              <p className="text-sm text-muted-foreground max-w-lg mx-auto leading-relaxed">
+              Submit your Solidity contract and receive a full Slither-powered vulnerability
+              report — OWASP SC Top 10 classified findings, SWC IDs, severity ratings,
+              and specific remediation steps. No deployment required.
+              </p>
+            </div>
+
+            {/* Privacy consent */}
+            <div className="relative rounded-xl border border-border bg-background/60 p-5 space-y-3">
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                FinSec Guardian respects your privacy and will only use your personal
+                information to contact you about new product information, sales offers,
+                research, and/or invitations to events. If you consent to FinSec Guardian
+                using your personal information for these purposes, please check the box
+                below. You will have the opportunity to unsubscribe at any time by
+                contacting{" "}
+                <a
+                  href="mailto:datasubjectsrights@finsec.com"
+                  className="text-primary hover:underline font-mono"
+                >
+                  datasubjectsrights@finsec.com
+                </a>
+                .
+              </p>
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <div className="relative mt-0.5 shrink-0">
+                  <input
+                    type="checkbox"
+                    id="audit-consent"
+                    checked={auditConsent}
+                    onChange={(e) => setAuditConsent(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`h-4 w-4 rounded border-2 transition-all duration-150 flex items-center justify-center ${
+                      auditConsent
+                        ? "border-emerald-500 bg-emerald-500"
+                        : "border-border bg-background group-hover:border-primary"
+                    }`}
+                  >
+                    {auditConsent && (
+                      <svg viewBox="0 0 10 8" className="h-2.5 w-2.5 fill-none stroke-white stroke-2 stroke-round">
+                        <polyline points="1,4 3.5,6.5 9,1" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  I agree that FinSec Guardian may use my personal information for the
+                  purposes described above, including sending product updates, security
+                  insights, and event invitations.
+                </span>
+              </label>
+            </div>
+
+            {/* CTA button */}
+            <div className="relative flex flex-col items-center gap-3">
+              {auditRequested ? (
+                <div className="flex items-center gap-2 text-emerald-500 font-mono text-sm font-semibold">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Request received — we'll be in touch shortly!
+                </div>
+              ) : (
+                <Button
+                  size="lg"
+                  disabled={!auditConsent}
+                  className="gradient-primary text-primary-foreground font-mono font-bold px-8 disabled:opacity-40 disabled:cursor-not-allowed"
+                  onClick={() => {
+                    if (auditConsent) setAuditRequested(true);
+                  }}
+                >
+                  <FileSearch className="h-4 w-4 mr-2" />
+                  Request Free Audit &amp; Analysis
+                </Button>
+              )}
+              {!auditConsent && !auditRequested && (
+                <p className="text-[11px] text-muted-foreground font-mono">
+                  Please accept the privacy terms above to continue.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -438,7 +667,7 @@ const Login = () => {
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <footer className="border-t border-border py-6 px-4 text-center">
         <p className="text-xs font-mono text-muted-foreground">
-          © {new Date().getFullYear()} DeFiGuard · Built on{" "}
+          © {new Date().getFullYear()} FinSec Guardian · Built on{" "}
           <a
             href="https://scs.owasp.org/sctop10/"
             target="_blank"
@@ -447,7 +676,10 @@ const Login = () => {
           >
             OWASP SC Top 10
           </a>
-          {" "}standards
+          {" "}standards · Contact{" "}
+          <a href="mailto:datasubjectsrights@finsec.com" className="text-primary hover:underline">
+            datasubjectsrights@finsec.com
+          </a>
         </p>
       </footer>
 
