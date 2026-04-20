@@ -1,3 +1,16 @@
+## Research Context
+
+FinSec Guardian is part of my broader research on applying machine learning and security engineering to financial and tax systems.
+
+The platform serves as an experimental environment for:
+- Risk scoring models for financial and smart contract systems
+- Anomaly detection approaches, evolving from rule-based methods toward machine learning–driven techniques
+- Secure system design for high-integrity financial infrastructures (e.g., e-invoicing and eTIMS environments)
+
+While the current implementation focuses on rule-based and multi-engine analysis, ongoing work explores the integration of dataset-driven machine learning models for anomaly detection and threat prediction.
+
+The system persistently stores scan outputs and security findings to support longitudinal analysis, enabling future dataset construction for model training and evaluation.
+
 # FinSec Guardian
 
 FinSec Guardian is a **secure-by-design** Solidity smart contract security platform. It practises the security disciplines it audits: every layer of the stack — frontend, API, transport, and crawl surface — is hardened against the threat vectors described in the OWASP Top 10 and OWASP Smart Contract Top 10.
