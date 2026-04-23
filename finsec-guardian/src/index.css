@@ -1,0 +1,166 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 220 20% 7%;
+    --foreground: 160 30% 90%;
+
+    --card: 220 18% 10%;
+    --card-foreground: 160 30% 90%;
+
+    --popover: 220 18% 10%;
+    --popover-foreground: 160 30% 90%;
+
+    --primary: 160 100% 40%;
+    --primary-foreground: 220 20% 7%;
+
+    --secondary: 220 15% 15%;
+    --secondary-foreground: 160 30% 80%;
+
+    --muted: 220 15% 13%;
+    --muted-foreground: 220 10% 50%;
+
+    --accent: 280 80% 55%;
+    --accent-foreground: 280 100% 95%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 38 100% 10%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 142 100% 95%;
+
+    --info: 199 89% 48%;
+    --info-foreground: 199 100% 95%;
+
+    --border: 220 15% 18%;
+    --input: 220 15% 15%;
+    --ring: 160 100% 40%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 220 20% 5%;
+    --sidebar-foreground: 160 30% 80%;
+    --sidebar-primary: 160 100% 40%;
+    --sidebar-primary-foreground: 220 20% 7%;
+    --sidebar-accent: 220 15% 12%;
+    --sidebar-accent-foreground: 160 30% 90%;
+    --sidebar-border: 220 15% 15%;
+    --sidebar-ring: 160 100% 40%;
+
+    --glow-primary: 0 0 20px hsl(160 100% 40% / 0.15);
+    --glow-accent: 0 0 20px hsl(280 80% 55% / 0.15);
+    --glow-danger: 0 0 20px hsl(0 72% 51% / 0.15);
+  }
+
+  /* ── Light theme ─────────────────────────────────────────────────── */
+  .light {
+    --background: 0 0% 98%;
+    --foreground: 220 20% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 12%;
+
+    --primary: 160 80% 32%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 93%;
+    --secondary-foreground: 220 20% 20%;
+
+    --muted: 220 14% 93%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 280 60% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 92% 42%;
+    --warning-foreground: 0 0% 100%;
+
+    --success: 142 76% 30%;
+    --success-foreground: 0 0% 100%;
+
+    --info: 199 89% 40%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 220 13% 86%;
+    --input: 220 13% 90%;
+    --ring: 160 80% 32%;
+
+    --sidebar-background: 220 20% 96%;
+    --sidebar-foreground: 220 20% 20%;
+    --sidebar-primary: 160 80% 32%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 14% 90%;
+    --sidebar-accent-foreground: 220 20% 12%;
+    --sidebar-border: 220 13% 86%;
+    --sidebar-ring: 160 80% 32%;
+
+    --glow-primary: 0 0 20px hsl(160 80% 32% / 0.12);
+    --glow-accent: 0 0 20px hsl(280 60% 50% / 0.12);
+    --glow-danger: 0 0 20px hsl(0 72% 45% / 0.12);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+  .glow-accent {
+    box-shadow: var(--glow-accent);
+  }
+  .glow-danger {
+    box-shadow: var(--glow-danger);
+  }
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(160 100% 40%), hsl(199 89% 48%));
+  }
+  .gradient-accent {
+    background: linear-gradient(135deg, hsl(280 80% 55%), hsl(320 80% 55%));
+  }
+  .text-gradient-primary {
+    background: linear-gradient(135deg, hsl(160 100% 40%), hsl(199 89% 48%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .scanline {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      hsl(160 100% 40% / 0.03) 2px,
+      hsl(160 100% 40% / 0.03) 4px
+    );
+  }
+}

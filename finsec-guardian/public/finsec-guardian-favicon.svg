@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="hsl(160,100%,40%)"/>
+      <stop offset="100%" stop-color="hsl(199,89%,48%)"/>
+    </linearGradient>
+  </defs>
+  <!-- Dark navy background -->
+  <rect width="32" height="32" rx="6" fill="hsl(220,20%,7%)"/>
+  <!-- Shield shape matching the app logo gradient -->
+  <path d="M16 3 L28 7.5 L28 17 C28 23.5 22.5 28.5 16 30 C9.5 28.5 4 23.5 4 17 L4 7.5 Z" fill="url(#grad)"/>
+  <!-- White checkmark inside -->
+  <polyline points="10,17 14.5,21.5 23,12" fill="none" stroke="hsl(220,20%,7%)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
