@@ -1,15 +1,20 @@
 ## Research Context
 
-FinSec Guardian is part of my broader research on applying machine learning and security engineering to financial and tax systems.
+FinSec Guardian is part of my broader research agenda focused on applying machine learning, security analytics, and systems engineering to high-integrity financial and digital tax infrastructures.
 
-The platform serves as an experimental environment for:
-- Risk scoring models for financial and smart contract systems
-- Anomaly detection approaches, evolving from rule-based methods toward machine learning–driven techniques
-- Secure system design for high-integrity financial infrastructures (e.g., e-invoicing and eTIMS environments)
+The platform currently functions as a modular cybersecurity research testbed for evaluating how heterogeneous security signals can be combined into explainable risk intelligence workflows.
 
-While the current implementation focuses on rule-based and multi-engine analysis, ongoing work explores the integration of dataset-driven machine learning models for anomaly detection and threat prediction.
+Current research themes include:
 
-The system persistently stores scan outputs and security findings to support longitudinal analysis, enabling future dataset construction for model training and evaluation.
+Risk scoring models for smart contracts, financial workflows, and transaction systems
+Anomaly detection pipelines evolving from rule-based heuristics toward supervised and unsupervised machine learning approaches
+Secure architecture design for trusted digital finance ecosystems such as e-invoicing and tax automation platforms (e.g., eTIMS)
+Security telemetry persistence for longitudinal threat analysis and dataset generation
+Automated vulnerability classification using multi-engine static and dynamic security outputs
+
+While the present implementation emphasizes deterministic rule-based analysis, ongoing work explores dataset-driven learning models for fraud detection, threat prediction, and adaptive risk scoring.
+
+The long-term objective is to develop scalable AI-assisted cybersecurity systems capable of improving trust, compliance, and resilience in emerging digital economies.
 
 # FinSec Guardian
 
