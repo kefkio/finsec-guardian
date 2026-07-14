@@ -1,5 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  'http://127.0.0.1:8000/api';
 const TOKEN_KEY = 'finsec_access_token';
 const REFRESH_KEY = 'finsec_refresh_token';
 
@@ -98,7 +99,6 @@ export const scannerApi = {
   getScan: (id) => request(`/scanner/scans/${id}/`),
   createScan: (data) => request('/scanner/scans/', { method: 'POST', body: JSON.stringify(data) }),
   getFindings: (id) => request(`/scanner/scans/${id}/findings/`),
-  getDashboardScans: () => request('/scanner/scans/?ordering=-created_at&page_size=100'),
 };
 
 // Threats

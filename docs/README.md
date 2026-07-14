@@ -8,7 +8,9 @@
 
 ## About
 
-FinSec Guardian is a **composable multi-engine security analysis platform** for auditing Solidity smart contracts pre-deployment. It integrates five heterogeneous analysis methodologies into a unified pipeline with normalised findings, deterministic risk scoring, automated invariant generation, on-chain intelligence, and tamper-evident audit logging.
+FinSec Guardian is a research-grade, multi-engine security intelligence platform for analyzing Solidity smart contracts prior to deployment. It integrates heterogeneous static, symbolic, fuzzing, heuristic, and on-chain analysis techniques into a unified pipeline that produces normalised vulnerability findings, deterministic risk scores, and tamper-evident audit records.
+
+The system is designed as a modular cybersecurity research platform, supporting extensible analysis workflows for blockchain security, with a forward-compatible architecture for financial systems and IoT security analytics integration.
 
 **Key capabilities:**
 - **Multi-engine analysis** — Slither (static), Mythril (symbolic), Echidna (fuzz), Heuristic (regex), Etherscan (on-chain)
