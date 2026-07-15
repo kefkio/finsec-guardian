@@ -266,7 +266,7 @@ class ScanOrchestrator:
         9. Risk score (with on-chain adjustment).
         10. Update summary counts and mark 'complete' (or 'failed').
         """
-        from scanner.models import ScanJob  # noqa: PLC0415
+        from scanner.infrastructure.persistence.models import ScanJob  # noqa: PLC0415
 
         try:
             job = ScanJob.objects.get(id=job_id)

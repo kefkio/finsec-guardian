@@ -3,7 +3,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework.test import APITestCase
 import importlib.util
 
-from scanner.models import ScanJob
+from scanner.infrastructure.persistence.models import ScanJob
 from scanner.services import SlitherService
 
 

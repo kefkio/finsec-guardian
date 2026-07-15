@@ -120,7 +120,7 @@ class SlitherService:
             job_id: Primary key of the ScanJob to analyse.
         """
         # Late imports to avoid circular dependencies at module load time.
-        from scanner.models import FindingCategory, ScanJob  # noqa: PLC0415
+        from scanner.infrastructure.persistence.models import FindingCategory, ScanJob  # noqa: PLC0415
 
         try:
             job = ScanJob.objects.get(id=job_id)
@@ -285,7 +285,7 @@ class SlitherService:
         Upsert each finding into the database.
         Uses get_or_create so re-running a scan is idempotent.
         """
-        from scanner.models import Finding, FindingCategory  # noqa: PLC0415
+        from scanner.infrastructure.persistence.models import Finding, FindingCategory  # noqa: PLC0415
 
         for data in findings:
             category = None

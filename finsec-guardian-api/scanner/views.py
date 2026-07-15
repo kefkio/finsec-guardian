@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
-from .models import ScanJob, Finding, FindingCategory
+from .infrastructure.persistence.models import ScanJob, Finding, FindingCategory
 from .serializers import ScanJobSerializer, ScanJobListSerializer, FindingSerializer
 from .slither_runner import run_slither_analysis
 from audit.models import AuditEvent

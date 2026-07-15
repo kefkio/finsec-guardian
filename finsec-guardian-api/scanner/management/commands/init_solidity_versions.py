@@ -1,6 +1,6 @@
 # scanner/management/commands/init_solidity_versions.py
 from django.core.management.base import BaseCommand
-from scanner.models import SolidityVersion
+from scanner.infrastructure.persistence.models import SolidityVersion
 
 class Command(BaseCommand):
     def handle(self, *args, **options):

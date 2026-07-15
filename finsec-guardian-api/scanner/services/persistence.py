@@ -51,7 +51,7 @@ class ScanPersistence:
     @staticmethod
     def persist_findings(job, findings: list[dict]) -> None:
         """Upsert findings into the database (idempotent via get_or_create)."""
-        from scanner.models import Finding, FindingCategory  # noqa: PLC0415
+        from scanner.infrastructure.persistence.models import Finding, FindingCategory  # noqa: PLC0415
 
         for data in findings:
             swc_id = data.get("swc_id", "")

@@ -172,22 +172,22 @@ Security Tooling
 ---
 ## Quick Start
 
-  ### Clone Repository
-</>Bash
-``` 
+### Clone Repository
+```bash
 git clone https://github.com/kefkio/finsec-guardian.git
 cd finsec
 ```
-  ### Run Full Platform
-  </>Bash
-  ```
+
+### Run Full Platform
+```bash
 chmod +x run.sh
 ./run.sh
 ```
+
 ---
 ### Access
-  Frontend: http://localhost:8080
-  Backend: http://localhost:8000
+Frontend: http://localhost:8080
+Backend: http://localhost:8000
 
 ### Screenshots / Demo Preview (Very Important)
 ```

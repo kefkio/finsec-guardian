@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ScanJob, Finding
+from .infrastructure.persistence.models import ScanJob, Finding
 
 
 class FindingSerializer(serializers.ModelSerializer):
