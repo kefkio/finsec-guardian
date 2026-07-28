@@ -1,0 +1,5 @@
+# Architect's Note #29 – Model the Domain, Not the Implementation
+
+A common temptation is to model only the data immediately required by the current implementation. However, robust domain models capture business concepts, even when they initially appear simple. CodeContext is more than a collection of strings; it represents the semantic location of a vulnerability within a smart contract. By separating this concept from SourceLocation, we distinguish where code exists from what that code represents.
+
+This distinction allows the architecture to evolve naturally. Future fingerprinting algorithms can rely on richer semantic information—such as AST paths, inheritance relationships, or control-flow context—without changing the responsibilities of Finding or FingerprintService. The value object becomes a stable abstraction that grows with the capabilities of the platform.

@@ -1,0 +1,5 @@
+# Architect's Note #30 – Store Facts, Derive Representations
+
+A robust domain model distinguishes between facts and representations. Facts are the authoritative data owned by an object, while representations are views or transformations derived from those facts. Storing both a source snippet and its normalized form introduces multiple sources of truth and creates the possibility of inconsistency. Instead, the domain should store only the canonical fact (source_snippet) and derive normalized representations through a dedicated CodeNormalizer service.
+
+This design preserves immutability, maintains a single source of truth, and keeps normalization algorithms independent of the CodeContext value object. As normalization techniques evolve—from simple whitespace removal to AST-based canonicalization or control-flow normalization—the architecture can improve without altering the fundamental responsibility of CodeContext.

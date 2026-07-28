@@ -1,0 +1,5 @@
+# Architect's Note #33 – Design APIs Before Implementations
+
+The public interface of a class is part of the domain model. Before writing implementation code, it is valuable to ask what information the object owns, what behaviors naturally belong to it, and what responsibilities should remain outside it. This ensures that the class reflects a coherent business concept rather than becoming a collection of convenience methods.
+
+For CodeContext, the guiding principle is semantic location. It owns only the information required to describe where a vulnerability exists within the logical structure of a program. It deliberately excludes derived artifacts (such as normalized code), analysis metadata (such as severity or analyzer), and implementation concerns (such as fingerprint generation). By keeping the API minimal and focused, we preserve cohesion and create a stable foundation for future enhancements without burdening the value object with responsibilities that belong elsewhere.

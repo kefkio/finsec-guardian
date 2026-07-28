@@ -1,0 +1,3 @@
+# Architect's Note #23 – Code Is the Final Expression of Architecture
+
+Architecture should not live only in diagrams, and code should not exist without architectural intent. A mature software system maintains a continuous thread from design decisions, through structural blueprints, into implementation, and finally into tests that verify those decisions. When these artifacts evolve together, the codebase becomes easier to understand, safer to refactor, and more resilient as the team and system grow.

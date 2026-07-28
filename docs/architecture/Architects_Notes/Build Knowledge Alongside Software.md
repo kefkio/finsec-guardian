@@ -1,0 +1,3 @@
+# Architect's Note #28 – Build Knowledge Alongside Software
+
+A software system is more than its source code. Its value also lies in the reasoning behind its design. Architecture, decision records, blueprints, implementation, and tests each capture a different aspect of that knowledge. When these evolve together, the project becomes understandable rather than merely functional. Future contributors inherit not only a working system but also the architectural thinking that shaped it, enabling them to extend the platform without unintentionally eroding its design.
