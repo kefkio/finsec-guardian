@@ -56,3 +56,14 @@ class RiskLevel(DomainEnum):
         Returns True if the risk level warrants immediate action.
         """
         return self is RiskLevel.CRITICAL
+
+    @property
+    def overall_risk(self) -> RiskLevel:
+        """
+        Returns the overall risk level, which is the same as the instance itself.
+        This property is provided for semantic clarity in contexts where
+        the overall risk level is being assessed.
+        """
+        if not self._findings:
+            return RiskLevel.VERY_LOW
+        return max(self._findings, key=lambda f: f.risk_level.priority).risk

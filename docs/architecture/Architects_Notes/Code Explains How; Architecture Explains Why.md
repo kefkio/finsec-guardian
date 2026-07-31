@@ -1,0 +1,5 @@
+Architect's Note #45 – Code Explains How; Architecture Explains Why
+
+Source code is excellent at describing how a system works, but it rarely captures why specific design decisions were made. Over time, teams change, requirements evolve, and the original reasoning is forgotten. Architecture documentation bridges this gap by preserving the intent behind the implementation.
+
+For FinSec Guardian, we should treat architecture documentation as a first-class artifact. Architect's Notes, Architecture Decision Records (ADRs), and a Domain Handbook will evolve alongside the codebase. Together, they will document the system's vocabulary, design principles, and major decisions, enabling future contributors—including ourselves—to understand not only the implementation, but also the reasoning that shaped it.
