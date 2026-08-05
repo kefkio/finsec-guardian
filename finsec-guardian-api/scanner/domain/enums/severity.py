@@ -1,45 +1,69 @@
+from __future__ import annotations
+
 from scanner.domain.enums.base import DomainEnum
 
 
 class Severity(DomainEnum):
     """
-    Represents the severity level of a security finding.
+    Represents the impact of a security finding.
 
-    Severity reflects the potential impact of a vulnerability
-    if it is successfully exploited.
+    Severity describes the potential damage a vulnerability could cause
+    if exploited. It is independent of confidence, which expresses how
+    certain an analyzer is that the finding is a true positive.
     """
 
-    CRITICAL = ("critical", 1)
-    HIGH = ("high", 2)
-    MEDIUM = ("medium", 3)
-    LOW = ("low", 4)
-    INFORMATIONAL = ("informational", 5)
+    # Type annotations for static analyzers (Pylance, Pyright, mypy)
+    _priority: int
+    _weight: int
+
+    CRITICAL = ("critical", 1, 5)
+    HIGH = ("high", 2, 4)
+    MEDIUM = ("medium", 3, 3)
+    LOW = ("low", 4, 2)
+    INFORMATIONAL = ("informational", 5, 1)
 
     def __new__(
         cls,
         value: str,
         priority: int,
+        weight: int,
     ):
         obj = str.__new__(cls, value)
         obj._value_ = value
         obj._priority = priority
+        obj._weight = weight
         return obj
 
     @property
     def priority(self) -> int:
         """
-        Numeric priority used for sorting.
+        Numeric ordering of severity.
 
-        Lower numbers indicate higher severity.
+        Lower values represent more severe findings.
         """
         return self._priority
 
     @property
+    def weight(self) -> int:
+        """
+        Relative contribution of this severity to the aggregate
+        risk score.
+        """
+        return self._weight
+
+    @property
+    def is_blocking(self) -> bool:
+        """
+        Returns True if this severity should block deployment.
+        """
+        return self in (
+            Severity.CRITICAL,
+            Severity.HIGH,
+        )
+
+    @property
     def is_high_risk(self) -> bool:
         """
-        Returns True for Critical and High severity findings.
+        Returns True for HIGH and CRITICAL severities.
         """
-        return (
-            self is Severity.CRITICAL
-            or self is Severity.HIGH
-        )
+        return self.is_blocking

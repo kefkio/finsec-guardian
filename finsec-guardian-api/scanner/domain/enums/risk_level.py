@@ -1,14 +1,22 @@
+from __future__ import annotations
+
+from functools import total_ordering
+
 from scanner.domain.enums.base import DomainEnum
 
 
+@total_ordering
 class RiskLevel(DomainEnum):
     """
-    Represents the overall risk posed by a security finding or
-    an analyzed smart contract.
+    Represents the overall security risk posed by a vulnerability,
+    scan, or assessed target.
 
-    Unlike Severity, RiskLevel is a composite assessment that may
-    incorporate factors such as severity, confidence,
-    exploitability, business impact, and environmental context.
+    RiskLevel is distinct from Severity.
+
+    Severity describes the technical impact of an individual finding,
+    whereas RiskLevel represents the overall business risk after
+    considering factors such as severity, confidence, exploitability,
+    and environmental context.
     """
 
     VERY_LOW = ("very_low", 1)
@@ -34,36 +42,61 @@ class RiskLevel(DomainEnum):
     @property
     def priority(self) -> int:
         """
-        Numeric priority.
+        Numeric ordering priority.
 
-        Higher numbers represent higher overall risk.
+        Larger values represent higher overall risk.
         """
         return self._priority
 
     @property
+    def is_low_risk(self) -> bool:
+        """
+        Returns True for VERY_LOW and LOW.
+        """
+        return self in (
+            RiskLevel.VERY_LOW,
+            RiskLevel.LOW,
+        )
+
+    @property
+    def is_medium_risk(self) -> bool:
+        """
+        Returns True for MEDIUM.
+        """
+        return self is RiskLevel.MEDIUM
+
+    @property
     def is_high_risk(self) -> bool:
         """
-        Returns True for High and Critical risk levels.
+        Returns True for HIGH and CRITICAL.
         """
-        return (
-            self is RiskLevel.HIGH
-            or self is RiskLevel.CRITICAL
+        return self in (
+            RiskLevel.HIGH,
+            RiskLevel.CRITICAL,
         )
 
     @property
     def requires_immediate_attention(self) -> bool:
         """
-        Returns True if the risk level warrants immediate action.
+        Returns True when remediation should begin immediately.
         """
         return self is RiskLevel.CRITICAL
 
     @property
-    def overall_risk(self) -> RiskLevel:
+    def is_deployment_blocking(self) -> bool:
         """
-        Returns the overall risk level, which is the same as the instance itself.
-        This property is provided for semantic clarity in contexts where
-        the overall risk level is being assessed.
+        Returns True if this risk level blocks deployment.
         """
-        if not self._findings:
-            return RiskLevel.VERY_LOW
-        return max(self._findings, key=lambda f: f.risk_level.priority).risk
+        return self in (
+            RiskLevel.HIGH,
+            RiskLevel.CRITICAL,
+        )
+
+    def __lt__(self, other: object) -> bool:
+        """
+        Enables natural ordering of RiskLevel values.
+        """
+        if not isinstance(other, RiskLevel):
+            return NotImplemented
+
+        return self.priority < other.priority

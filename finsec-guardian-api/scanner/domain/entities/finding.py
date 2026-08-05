@@ -259,16 +259,6 @@ class Finding(Entity):
         """
         self.updated_at = self.clock()
 
-    def _close(self) -> None:
-        """
-        Marks the finding as closed.
-
-        The first closing action freezes the closure timestamp.
-        """
-        if self.closed_at is None:
-            self.closed_at = self.clock()
-
-        self._touch()
 
     # ==========================================================
     # Identity
@@ -532,3 +522,41 @@ class Finding(Entity):
         """
         self.closed_at = self.clock()
         self._touch()
+
+    def merge(self, other: Finding) -> None:
+        """
+        Merges another finding into this one.
+
+        The merge operation updates the current finding's attributes
+        with the most recent information from the other finding.
+
+        Raises:
+            DomainValidationError:
+                If the findings do not represent the same vulnerability.
+        """
+        if not self.matches(other):
+            raise DomainValidationError(
+                "Cannot merge findings with different signatures."
+            )
+
+        # Update attributes with the most recent information
+        if other.updated_at > self.updated_at:
+            self.title = other.title
+            self.description = other.description
+            self.recommendation = other.recommendation
+            self.severity = other.severity
+            self.confidence = other.confidence
+            self.risk_level = other.risk_level
+            self.analyzer = other.analyzer
+            self.location = other.location
+            self.signature = other.signature
+            self.status = other.status
+            self.assigned_to = other.assigned_to
+            self.verified_by = other.verified_by
+            self.resolved_by = other.resolved_by
+            self.created_at = min(self.created_at, other.created_at)
+            self.updated_at = max(self.updated_at, other.updated_at)
+            if other.closed_at is not None:
+                self.closed_at = max(
+                    filter(None, [self.closed_at, other.closed_at])
+                )

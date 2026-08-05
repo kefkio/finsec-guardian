@@ -301,30 +301,24 @@ class Scan(Entity):
             for finding in self._findings
         )
 
-@property
-def overall_risk(self) -> RiskLevel:
-    """
-    Returns the highest risk level identified during the scan.
+    @property
+    def overall_risk(self) -> RiskLevel:
+        """
+        Returns the highest risk level identified during the scan.
 
-    If the scan contains no findings, the overall risk defaults
-    to VERY_LOW.
-    """
-    if not self._findings:
-        return RiskLevel.VERY_LOW
+        If the scan contains no findings, the overall risk defaults
+        to VERY_LOW.
+        """
+        if not self._findings:
+            return RiskLevel.VERY_LOW
 
-    return max(
-        (
-            finding.risk_level
-            for finding in self._findings
-        ),
-        key=lambda risk: risk.priority,
-    )
-
-
-    
-
-
-    
+        return max(
+            (
+                finding.risk_level
+                for finding in self._findings
+            ),
+            key=lambda risk: risk.priority,
+        )
 
     # ==========================================================
     # Derived Properties
