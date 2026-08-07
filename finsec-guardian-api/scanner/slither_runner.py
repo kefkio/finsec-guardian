@@ -1,19 +1,26 @@
 """
-Compatibility shim consumed by views.py.
+Task adapter for smart-contract analysis.
 
-Provides ``run_slither_analysis`` with two call patterns:
+This module provides a single entry point, ``run_slither_analysis``,
+used by the API layer.
 
-    # Sync (trigger_scan action) — called with raw source code string:
-    result_dict = run_slither_analysis(source_code)
+Supported call patterns
+-----------------------
 
-    # Async (perform_create / quick_scan) — called with a ScanJob PK:
+Synchronous:
+
+    result = run_slither_analysis(source_code)
+
+Asynchronous:
+
     run_slither_analysis.delay(job_id)
 
-When Celery is available the task is registered as a shared_task so that
-``run_slither_analysis.delay(...)`` dispatches to a worker.
-When Celery is NOT available a lightweight thread-based fallback is used so
-that the call signature stays identical.
+When Celery is available, the task is registered as a shared task.
+Otherwise a lightweight thread-backed fallback is provided so the API
+remains unchanged.
 """
+
+from __future__ import annotations
 
 import logging
 import threading
@@ -21,78 +28,128 @@ import threading
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Try to register as a Celery task; fall back to a threading shim.
-# ---------------------------------------------------------------------------
-
 def _run_analysis_impl(source_code_or_job_id):
     """
-    Dispatch logic shared by both the Celery task and the thread fallback.
+    Execute a smart-contract scan.
 
-    - int / str-that-is-a-number: treated as a ScanJob PK → full lifecycle.
-    - str (Solidity source):       sync analysis, returns raw Slither JSON dict.
+    Parameters
+    ----------
+    source_code_or_job_id:
+        Either
+
+        * Solidity source code (str)
+        * ScanJob primary key (int)
+
+    Returns
+    -------
+    dict
+        Raw analyzer output for synchronous scans.
     """
-    from scanner.services import SlitherService, SlitherError  # noqa: PLC0415
+    from scanner.services.orchestrator import ScanOrchestrator
+    from scanner.services.analyzers.slither import SlitherError
 
-    service = SlitherService()
+    orchestrator = ScanOrchestrator()
 
-    # Background job path: called with a ScanJob PK.
+    # -------------------------------------------------------------
+    # Background ScanJob execution
+    # -------------------------------------------------------------
     if isinstance(source_code_or_job_id, int) or (
         isinstance(source_code_or_job_id, str)
         and source_code_or_job_id.isdigit()
     ):
         job_id = int(source_code_or_job_id)
-        service.analyze_scan_job(job_id)
-        return {}
 
-    # Sync path: called with raw Solidity source code.
+        try:
+            orchestrator.run_scan_job(job_id)
+            return {
+                "success": True,
+                "job_id": job_id,
+                "status": "queued",
+            }
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Background scan job %s failed", job_id)
+            return {
+                "success": False,
+                "job_id": job_id,
+                "error": str(exc),
+            }
+
+    # -------------------------------------------------------------
+    # Direct source-code analysis
+    # -------------------------------------------------------------
     try:
-        result = service.run_analysis(source_code_or_job_id)
-        return result.get("raw_output", {})
-    except SlitherError as exc:
-        logger.error("Slither error: %s", exc)
-        return {"error": str(exc)}
+        result = orchestrator.run_scan(source_code_or_job_id)
 
+        return result.get("raw_output", {})
+
+    except SlitherError as exc:
+        logger.exception("Slither analysis failed")
+
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+    except Exception as exc:
+        logger.exception("Analysis pipeline failed")
+
+        return {
+            "success": False,
+            "error": str(exc),
+        }
+
+
+# ----------------------------------------------------------------------
+# Celery integration
+# ----------------------------------------------------------------------
 
 try:
-    from celery import shared_task  # type: ignore[import-untyped]
+    from celery import shared_task
 
-    @shared_task(name="scanner.run_slither_analysis", bind=False)
+    @shared_task(
+        name="scanner.run_slither_analysis",
+        bind=False,
+    )
     def run_slither_analysis(source_code_or_job_id):
-        """Celery task: run Slither analysis (sync or job-based)."""
+        """Celery task entry point."""
         return _run_analysis_impl(source_code_or_job_id)
 
-    logger.debug("run_slither_analysis registered as a Celery shared_task.")
+    logger.debug("run_slither_analysis registered as Celery task.")
 
 except ImportError:
-    # -----------------------------------------------------------------
-    # Celery not installed — provide a callable with a `.delay()` method
-    # that dispatches to a daemon thread so callers don't block.
-    # -----------------------------------------------------------------
 
     class _ThreadBackedTask:
-        """Minimal Celery-task look-alike backed by threading.Thread."""
+        """
+        Minimal Celery-compatible fallback.
+
+        Exposes:
+
+            run_slither_analysis(...)
+            run_slither_analysis.delay(...)
+        """
 
         def __call__(self, source_code_or_job_id):
             return _run_analysis_impl(source_code_or_job_id)
 
         def delay(self, *args, **kwargs):
-            """Fire-and-forget: run in a background daemon thread."""
-            t = threading.Thread(
+            thread = threading.Thread(
                 target=_run_analysis_impl,
                 args=args,
                 kwargs=kwargs,
                 daemon=True,
             )
-            t.start()
+
+            thread.start()
+
             logger.debug(
-                "run_slither_analysis dispatched to background thread (tid=%s).",
-                t.ident,
+                "Background analysis started in thread %s",
+                thread.ident,
             )
-            return t  # return the Thread so callers can .join() if needed
+
+            return thread
 
     run_slither_analysis = _ThreadBackedTask()
 
     logger.debug(
-        "Celery not found — run_slither_analysis uses thread-based fallback."
+        "Celery unavailable. Using thread-backed task implementation."
     )

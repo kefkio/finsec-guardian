@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import total_ordering
 
 from scanner.domain.enums.base import DomainEnum
+from scanner.domain.enums.severity import Severity
 
 
 @total_ordering
@@ -47,6 +48,27 @@ class RiskLevel(DomainEnum):
         Larger values represent higher overall risk.
         """
         return self._priority
+
+    @property
+    def weight(self) -> int:
+        """
+        Alias for the numeric risk priority used by scoring heuristics.
+        """
+        return self.priority
+
+    @classmethod
+    def from_severity(cls, severity: Severity) -> "RiskLevel":
+        """
+        Map a technical severity to an overall business risk level.
+        """
+        mapping = {
+            Severity.CRITICAL: cls.CRITICAL,
+            Severity.HIGH: cls.HIGH,
+            Severity.MEDIUM: cls.MEDIUM,
+            Severity.LOW: cls.LOW,
+            Severity.INFORMATIONAL: cls.VERY_LOW,
+        }
+        return mapping[severity]
 
     @property
     def is_low_risk(self) -> bool:

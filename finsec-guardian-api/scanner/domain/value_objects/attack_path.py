@@ -213,4 +213,4 @@ class AttackPath:
 
     @property
     def is_info_risk(self) -> bool:
-        return self.risk_level is RiskLevel.INFO
+        return self.risk_level is RiskLevel.VERY_LOW

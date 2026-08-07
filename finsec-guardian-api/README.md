@@ -1,263 +1,68 @@
 # FinSec Guardian — API
 
-Django REST Framework backend for the [FinSec Guardian](../finsec-guardian) smart contract security platform.
+This backend provides the REST API for the FinSec Guardian platform. It coordinates analysis runs, normalises findings, computes risk output, and stores scan-related records for the frontend experience.
 
-Exposes a secured REST API that orchestrates **Slither**, **Mythril**, **Echidna**, and a custom **Heuristic Analyzer** (four analysis engines), persists scan results, computes aggregate risk scores, manages STRIDE threat records, and maintains a tamper-evident audit trail.
+## Current backend architecture
 
-| Repo | Purpose |
+The backend is structured around a layered pipeline:
+
+```text
+Analyzers → Orchestrator → Normalizer → Risk Scorer → Persistence → API
+```
+
+### Core responsibilities
+
+- Run analysis engines and collect tool output
+- Normalise heterogeneous findings into a common schema
+- Compute aggregate risk scores and scan summaries
+- Persist scan state, findings, threats, and audit events
+- Expose the workflow through DRF endpoints
+
+## Domain analysis flow
+
+The current domain layer adds a second analytical stage on top of raw findings. Findings are correlated, assembled into graph components, and transformed into attack paths.
+
+```text
+Raw findings
+  ↓
+FindingCorrelationService
+  ↓
+CorrelationEdge
+  ↓
+CorrelationGraph
+  ↓
+CorrelationComponent
+  ↓
+AttackPathService
+  ↓
+AttackPath
+```
+
+## Main backend modules
+
+| Area | Purpose |
 | --- | --- |
-| `finsec-guardian` | React frontend |
-| `finsec-guardian-api` (this repo) | Django REST API — scanner, threats, audit, records |
+| scanner/services/analyzers | Tool-specific execution and result parsing |
+| scanner/services/orchestrator.py | Coordinates the scan pipeline |
+| scanner/services/normalizer.py | Converts raw output into the canonical finding schema |
+| scanner/services/risk_scorer.py | Computes aggregate risk values |
+| scanner/domain/services | Correlation and attack-path discovery services |
+| scanner/domain/value_objects | Immutable domain artefacts such as attack paths and graph components |
 
----
-
-## Architecture
-
-### Scan Pipeline
-
-Every scan flows through a layered pipeline:
-
-```text
-Pluggable Analyzers → Scan Orchestrator → Finding Normalizer → Risk Scorer → Persistence Layer → API Interface
-```
-
-| Layer | Module | Responsibility |
-| --- | --- | --- |
-| **Analyzers** | `scanner/services/analyzers/` | Run each tool in process / container isolation and return a typed `AnalyzerResult` |
-| **Orchestrator** | `scanner/services/orchestrator.py` | Executes analyzers sequentially, enforces per-tool timeouts, aggregates results, ensures fault isolation |
-| **Normalizer** | `scanner/services/normalizer.py` | Converts heterogeneous tool output into a unified finding schema; sanitises temporary file paths and raw Docker output |
-| **Risk Scorer** | `scanner/services/risk_scorer.py` | Computes a weighted aggregate risk score (0–100) with per-tool reliability multipliers and exponential saturation |
-| **Persistence** | `scanner/services/persistence.py` | Manages `ScanJob` lifecycle state machine and idempotent `Finding` upserts |
-| **API** | `scanner/views.py` | DRF viewset exposing scan CRUD, risk assessment, finding management, and report export endpoints |
-
-### Analysis Engines
-
-Each tool runs in **full process / container isolation** — the main Django `.venv` contains none of the analysis runtimes.
-
-| Engine | Isolation | Description |
-| --- | --- | --- |
-| **Slither** (Trail of Bits) | Python venv (`venv-slither/`) | Static analysis with 80+ detectors — executed in an isolated Python virtual environment via subprocess |
-| **Mythril** (ConsenSys) | Python venv (`venv-mythril/`) | Symbolic execution and SMT-based bug finding — executed in an isolated Python virtual environment via subprocess |
-| **Echidna** (Crytic) | Docker container | Property-based fuzzing engine that generates randomised transaction sequences to break user-defined invariants (`echidna_*` functions); outputs counterexamples when invariants are violated |
-| **Heuristic Analyzer** | In-process | Regex-based source analysis that detects logic flaws Slither and Mythril miss — unguarded state mutations, missing input validation, unguarded Ether sends, DoS via external calls, missing events, and missing ownership patterns |
-
-```text
-finsec-guardian-api/
-  .venv/                          # Django + DRF runtime (no analysis tools)
-  venv-slither/                   # slither-analyzer 0.11.5 + py-solc-x
-  venv-mythril/                   # mythril 0.24.8
-  scanner/
-    services/
-      analyzers/
-        base.py                   # AnalyzerResult dataclass
-        slither.py                # Calls venv-slither via subprocess
-        mythril.py                # Calls venv-mythril via subprocess
-        echidna.py                # Calls Echidna via Docker container
-        heuristic.py              # Regex-based logic-flaw detection (6 checks)
-      invariants/
-        patterns.py               # Pluggable invariant pattern rules
-        generator.py              # Core invariant generation engine
-        injector.py               # Safe Solidity source injection
-      orchestrator.py             # Pipeline coordinator
-      normalizer.py               # Unifies raw output into findings
-      persistence.py              # ScanJob lifecycle + Finding upsert
-      risk_scorer.py              # Weighted aggregate risk scoring engine
-      _slither_runner_script.py   # Runs inside venv-slither; outputs JSON
-      _mythril_runner_script.py   # Runs inside venv-mythril; outputs JSON
-    tests/
-      __init__.py
-      test_pipeline.py            # 7 integration tests (API + Slither pipeline)
-      test_invariant_generator.py # 28 unit tests (invariant engine)
-```
-
-### Analyzer Interface Contract
-
-All analysis engines implement a common interface defined in `scanner/services/analyzers/base.py`:
-
-```python
-analyze(source_code: str, contract_name: str | None = None) -> AnalyzerResult
-```
-
-Where `AnalyzerResult` is a typed dataclass:
-
-```python
-@dataclass
-class AnalyzerResult:
-    success: bool                          # True if analysis completed without fatal error
-    raw_output: dict = field(default_factory=dict)  # Tool-specific structured data
-    error: str | None = None               # Error message (if failed)
-    stderr: str = ""                       # Captured stderr from subprocess
-    tool: str = ""                         # "slither", "mythril", "echidna", or "heuristic"
-```
-
-This abstraction allows all four engines to be plugged into the pipeline without modifying orchestration logic. Each analyzer:
-
-1. Writes Solidity source to a temporary `.sol` file (or analyses in-process for heuristic)
-2. Executes the tool via subprocess (or Docker)
-3. Parses JSON output from stdout
-4. Returns a structured `AnalyzerResult`
-
-### Unified Finding Schema
-
-All analyzer outputs are normalised by `FindingNormalizer` into a consistent canonical structure:
-
-```json
-{
-  "swc_id": "SWC-107",
-  "title": "Reentrancy",
-  "severity": "critical | high | medium | low | info",
-  "description": "Detailed explanation of the vulnerability",
-  "recommendation": "Remediation guidance",
-  "confidence": 90,
-  "line_number": 42,
-  "line_start": 40,
-  "line_end": 45,
-  "column": 8,
-  "code_snippet": "msg.sender.call{value: amount}(\"\")",
-  "tags": ["slither", "reentrancy"],
-  "reference_url": "https://swcregistry.io/docs/SWC-107",
-  "metadata": { "tool": "slither" }
-}
-```
-
-Tool-specific mapping rules:
-
-| Tool | Severity mapping | Confidence | Notes |
-| --- | --- | --- | --- |
-| **Slither** | `High → high`, `Medium → medium`, `Low → low`, `Informational/Optimization → info` | `High → 90`, `Medium → 65`, `Low → 40` | Extracts line info from `source_mapping.lines`; recommendations from curated lookup table |
-| **Mythril** | `High → high`, `Medium → medium`, `Low → low`, others → `info` | Fixed at 70 | SWC IDs normalised to `SWC-XXX` format; titles from internal SWC label map |
-| **Echidna** | Failed invariants → `high`, passed properties → `info` | 85 for failures | Counterexample transaction sequences embedded in description and metadata |
-| **Heuristic** | Varies by check (critical / high / medium / low) | Fixed at 70 | Findings pass through normaliser unchanged; no post-processing needed |
-
-The normaliser also sanitises temporary file paths from raw tool output and cleans up Docker error messages for human-readable reports.
-
-### Heuristic Analyzer
-
-The heuristic analyzer (`scanner/services/analyzers/heuristic.py`) complements Slither, Mythril, and Echidna by detecting semantic patterns that static and symbolic tools often miss. It performs six regex-based checks on the parsed function AST:
-
-| Check | Method | Severity | Description |
-| --- | --- | --- | --- |
-| **Unguarded State Mutation** | `_check_unguarded_state_mutation()` | Critical / High | Flags public functions that write state via caller-supplied parameters without access control |
-| **Missing Input Validation** | `_check_missing_input_validation()` | Medium | Flags public functions accepting `address` parameters without `address(0)` guards |
-| **Unguarded Ether Send** | `_check_unguarded_ether_send()` | Critical / High | Flags public functions sending Ether without ACL — **critical** if entire balance is drained |
-| **DoS via External Call** | `_check_dos_via_external_call()` | Medium | Flags direct Ether sends to `msg.sender` without pull-payment pattern (SWC-113) |
-| **Missing Events** | `_check_missing_events()` | Low | Flags contracts with state-modifying functions but no event declarations or emissions |
-| **Missing Ownership** | `_check_missing_ownership()` | High | Flags contracts lacking any governance mechanism (Ownable, AccessControl, `onlyOwner`) |
-
-### Echidna Integration
-
-Echidna is executed via a hardened Docker container with defence-in-depth isolation:
+## Quick start
 
 ```bash
-docker run --rm \
-    --user <uid>:<gid> \
-    --network none \
-    --read-only \
-    --tmpfs /tmp:rw,noexec,nosuid \
-    --memory 1g \
-    --cpus 2 \
-    -v <host_dir>:<workdir>:ro \
-    ghcr.io/crytic/echidna/echidna:v2.2.5 \
-    <filename> --format json --timeout <seconds>
+cd finsec-guardian-api
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-The analyzer workflow:
+## Notes
 
-1. Checks Docker availability via `shutil.which("docker")` — fails fast with a clear error if missing
-2. Auto-generates Echidna invariants from source via `InvariantGenerator` (see below)
-3. Injects `echidna_*` functions into the contract body via `InvariantInjector`
-4. Writes modified Solidity source to a temporary directory
-5. Invokes `docker run` directly with `--format json` for structured output
-6. Parses JSON stdout for test results (`passed`, `failed`, `error`)
-7. Extracts counterexample transaction sequences from failed invariants
-8. Cleans up via `shutil.rmtree()` (handles nested temp files)
-9. Emits normalised findings — failed invariants mapped to severity `high`, auto-generated failures tagged with `auto-invariant`
-
-Fallback: if stdout is not valid JSON, raw text output is captured and forwarded for manual inspection.
-
-### Invariant Auto-Generation
-
-The invariant engine (`scanner/services/invariants/`) automatically synthesises Echidna-compatible property functions from Solidity source code using regex-based heuristic pattern matching. This eliminates the need for hand-written `echidna_*` functions — the system infers safety properties from state variable declarations.
-
-#### Invariant Pipeline
-
-```text
-Solidity Source → Pattern Engine → Generator → Injector → Modified Contract → Echidna
-```
-
-| Module | Responsibility |
-| --- | --- |
-| `patterns.py` | Pluggable pattern rules — each pattern detects a variable category and emits invariant function bodies |
-| `generator.py` | Orchestrates all patterns, deduplicates output, extracts `echidna_*` function names for metadata tracking |
-| `injector.py` | Safely inserts generated invariants inside the last `contract` body (after opening brace) |
-
-#### Invariant Categories
-
-| Category | Pattern Class | Trigger | Generated Property |
-| --- | --- | --- | --- |
-| **Balance Safety** | `UintNonNegativePattern` | `uint` state variables | `echidna_<var>_non_negative()` — always true by Solidity semantics; violation indicates storage corruption |
-| **Access Control** | `OwnerNotZeroPattern` | `address` vars with "owner" in name | `echidna_<var>_not_zero()` — ensures ownership is never invalidated to zero-address |
-| **Boolean Sanity** | `BoolSanityPattern` | `bool` state variables | `echidna_<var>_valid()` — detects storage-slot corruption pushing a bool outside `{0, 1}` |
-| **Contract Balance** | `ContractBalancePattern` | Always fires | `echidna_contract_balance_non_negative()` — flags potential balance accounting bugs |
-
-#### Injection Strategy
-
-Invariants are injected **inside** the last `contract` body — not appended after the closing brace — to produce syntactically valid Solidity:
-
-```solidity
-contract MyToken {
-    uint256 public totalSupply;
-    address public owner;
-
-    // === AUTO-GENERATED ECHIDNA INVARIANTS ===
-
-    function echidna_totalSupply_non_negative() public view returns (bool) {
-        return totalSupply >= 0;
-    }
-
-    function echidna_owner_not_zero() public view returns (bool) {
-        return owner != address(0);
-    }
-
-    // ... original contract body ...
-}
-```
-
-#### Adding New Invariant Categories
-
-Adding a new invariant category requires only:
-
-1. Subclass `InvariantPattern` in `patterns.py`
-2. Implement `match(source_code) -> list[str]`
-3. Register the pattern in `InvariantGenerator.__init__`
-
-The pattern engine is intentionally regex-based — an AST-based upgrade path (via Slither's IR) is planned for future iterations.
-
-#### Metadata Tracking
-
-Generated invariant names are propagated through the pipeline as `invariant_metadata` in the `AnalyzerResult.raw_output`. The normaliser uses this to tag auto-generated property failures with `auto-invariant` in findings metadata, distinguishing them from user-written properties.
-
-### Execution Model
-
-- Slither and Mythril run via isolated Python virtual environments (`venv-slither/`, `venv-mythril/`)
-- Echidna runs via Docker container with full network and filesystem isolation
-- The heuristic analyzer runs in-process (no external dependencies)
-- The orchestrator executes analyzers **sequentially** (Slither → Mythril → Echidna → Heuristic)
-- Each analyzer is executed with:
-  - Strict timeout enforcement (Slither: 120s, Mythril: 60s default, Echidna: 120s default)
-  - Isolated runtime environment (no shared dependencies with Django)
-  - Independent failure handling — a failure in one analyzer does not terminate the pipeline
-- **Graceful degradation:** Slither is required (failure = scan fails); Mythril, Echidna, and Heuristic failures are logged as warnings and the scan continues with partial results
-- Progress is tracked at each stage: 10% → 40% → 60% → 80% → 100%
-
-### Risk Scoring Engine
-
-The `RiskScorer` (`scanner/services/risk_scorer.py`) computes a deterministic, explainable, tool-agnostic aggregate risk score from normalised findings.
-
-**Per-finding score:**
-
-$$\text{Score}_i = W_{\text{severity}} \times W_{\text{tool}} \times \frac{\text{confidence}}{100}$$
-
+The backend remains under active development. The focus is now on tightening the analysis pipeline, improving the domain layer, and making the outputs easier to reason about for both users and contributors.
 **Severity weights (10-point scale):**
 
 | Severity | Weight |
@@ -327,6 +132,7 @@ Only a new analyzer implementation conforming to the `AnalyzerResult` contract i
 | --- | --- |
 | `scanner` | Scan job lifecycle, Slither + Mythril + Echidna + Heuristic orchestration, finding persistence, risk scoring, report generation |
 | `threats` | STRIDE threat catalogue with likelihood / impact scoring |
+
 | `audit` | Immutable audit event log |
 | `records` | Tamper-evident records using SHA-256 hash chaining (blockchain-style integrity model) |
 

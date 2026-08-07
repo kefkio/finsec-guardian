@@ -6,6 +6,9 @@ from typing import ClassVar
 
 from scanner.domain.enums import AnalyzerType
 from scanner.domain.exceptions import DomainValidationError
+from scanner.domain.value_objects.correlation_component import (
+    CorrelationComponent,
+)
 from scanner.domain.value_objects.source_location import SourceLocation
 from scanner.domain.value_objects.vulnerability_signature import (
     VulnerabilitySignature,
@@ -96,6 +99,32 @@ class FingerprintService:
         Return the currently active fingerprint algorithm version.
         """
         return cls.ALGORITHM_VERSION
+
+    @classmethod
+    def attack_path(cls, component: CorrelationComponent) -> str:
+        """
+        Generate a deterministic identifier for an attack path component.
+        """
+        if not isinstance(component, CorrelationComponent):
+            raise DomainValidationError(
+                "component must be a CorrelationComponent."
+            )
+
+        payload = "|".join(
+            [
+                cls.ALGORITHM_VERSION,
+                "attack-path",
+                str(component.node_count),
+                str(component.edge_count),
+                component.entry_finding_id.hex,
+                *sorted(finding.id.hex for finding in component.findings),
+            ]
+        )
+
+        return hashlib.new(
+            cls._HASH_ALGORITHM,
+            payload.encode("utf-8"),
+        ).hexdigest()
 
     @classmethod
     def _build_payload(

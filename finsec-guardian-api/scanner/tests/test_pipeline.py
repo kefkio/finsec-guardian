@@ -4,8 +4,7 @@ from rest_framework.test import APITestCase
 import importlib.util
 
 from scanner.infrastructure.persistence.models import ScanJob
-from scanner.services import SlitherService
-
+from scanner.services.analyzers.slither import SlitherAnalyzer
 
 VULNERABLE_CONTRACT = """// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;

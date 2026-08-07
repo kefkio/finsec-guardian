@@ -1,263 +1,98 @@
 # FinSec Guardian
 
-FinSec Guardian is a **secure-by-design** Solidity smart contract security platform. It practises the security disciplines it audits: every layer of the stack — frontend, API, transport, and crawl surface — is hardened against the threat vectors described in the OWASP Top 10 and OWASP Smart Contract Top 10.
+FinSec Guardian is a research-oriented platform for auditing Solidity smart contracts before deployment. It combines multiple analysis engines, normalises their findings into a unified model, and produces explainable risk outputs for security review and reporting.
 
-The platform combines four analysis engines — static analysis via [Slither](https://github.com/crytic/slither) (Trail of Bits), symbolic execution via [Mythril](https://github.com/Consensys/mythril) (ConsenSys), property-based fuzzing via [Echidna](https://github.com/crytic/echidna) (Crytic), and a custom regex-based heuristic analyzer — normalises findings into a unified schema, computes aggregate risk scores, and delivers tamper-proof audit reports with risk grades (A–F). All without requiring contract deployment.
+## Current Build
 
-| Repo | Purpose |
-| --- | --- |
-| `finsec-guardian` (this repo) | React frontend — landing page, scanner UI, dashboard, threat model, audit log, records |
-| `finsec-guardian-api` | Django REST Framework backend — four-engine scanner pipeline, risk scoring, scan persistence, STRIDE threats, audit events, tamper-proof records |
+The current implementation spans a React frontend and a Django REST API backend. The backend now includes a domain-driven analysis flow for correlated findings, where raw findings are transformed into correlation edges, graph components, and attack paths before being surfaced as structured attack-path results.
 
----
+### Repository layout
 
-## Application Security Architecture
+- Frontend: React + Vite + Tailwind in the finsec-guardian workspace
+- Backend: Django + DRF in the finsec-guardian-api workspace
+- Domain layer: correlation, graph, component, and attack-path services under the scanner domain package
 
-> FinSec Guardian is itself a hardened web application. This section documents the security controls built into every layer of the platform.
+## Core capabilities
 
-### 1. Authentication & Session Management  *(OWASP A07)*
+- Multi-engine contract analysis with Slither, Mythril, Echidna, and heuristic checks
+- Unified finding model with severity, confidence, remediation guidance, and metadata
+- Deterministic risk scoring and scan-level reporting
+- Domain-based attack-path discovery from correlated vulnerabilities
+- Tamper-evident audit records and threat-model integration
 
-| Control | Implementation |
-| --- | --- |
-| Authentication scheme | JWT (access + refresh tokens) via `djangorestframework-simplejwt` |
-| Token storage | `localStorage` with explicit `clear()` on logout; no cookies |
-| Silent token refresh | Expired access tokens are refreshed transparently via `/api/auth/refresh/`; on failure the session is cleared and the user is redirected to `/login` |
-| Protected routes | All authenticated routes are wrapped in a `ProtectedRoute` component; unauthenticated requests receive HTTP 401 |
-| Password policy | Django's `AUTH_PASSWORD_VALIDATORS` enforces minimum length, blocks common passwords, and rejects passwords too similar to the username |
-| Registration input | `RegisterSerializer` validates and sanitises all user-supplied fields before the ORM handles them |
-
-### 2. API Authorisation  *(OWASP A01)*
-
-- Every API endpoint requires `IsAuthenticated` (`permission_classes = [IsAuthenticated]`) — anonymous access returns HTTP 401
-- JWT authentication is the sole `DEFAULT_AUTHENTICATION_CLASS`; session/cookie auth is not enabled on the API
-- The Django admin interface is available only at a non-guessable path and is not exposed in the public API router
-
-### 3. Injection & Input Validation  *(OWASP A03)*
-
-- All database queries are issued through Django's ORM — raw SQL is not used anywhere
-- DRF serialisers validate and whitelist all incoming fields before any model interaction
-- Solidity source code submitted for scanning is passed directly to Slither as file input — it is never executed, interpreted, or rendered as HTML
-- Honeypot hidden fields on the login and registration forms silently reject automated bot submissions that fill invisible inputs
-
-### 4. Cross-Origin Resource Sharing  *(OWASP A05)*
-
-- `django-cors-headers` is installed as the first response middleware
-- `CORS_ALLOWED_ORIGINS` is set via environment variable — no wildcard (`*`) origins are permitted
-- In production, only the exact frontend origin is whitelisted
-
-### 5. Security HTTP Headers  *(OWASP A05)*
-
-**Backend (Django middleware stack):**
-
-| Header | Middleware |
-| --- | --- |
-| `X-Frame-Options: DENY` | `XFrameOptionsMiddleware` |
-| `X-Content-Type-Options: nosniff` | `SecurityMiddleware` |
-| HTTPS redirect (production) | `SecurityMiddleware` (`SECURE_SSL_REDIRECT`) |
-| HSTS (production) | `SecurityMiddleware` (`SECURE_HSTS_SECONDS`) |
-| CSRF protection | `CsrfViewMiddleware` |
-
-**Frontend (`index.html` meta tags):**
-
-| Header / Meta | Value |
-| --- | --- |
-| `Content-Security-Policy` | `default-src 'self'`; scripts, styles, images, and connections locked to same-origin + explicit API origins; `object-src 'none'`; `base-uri 'self'` |
-| `X-Content-Type-Options` | `nosniff` |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` |
-
-### 6. Bot & Automated Threat Mitigation  *(OWASP A09)*
-
-- **`robots.txt`** explicitly blocks known malicious scrapers and data-harvesting bots (AhrefsBot, SemrushBot, MJ12bot, DotBot, BLEXBot, Bytespider, GPTBot, CCBot, `python-requests`, Scrapy, and others) while still allowing search engine crawler access to public pages
-- `/api/` and `/admin/` paths are `Disallow`-ed for all crawlers, preventing automated discovery of API endpoints
-- **Honeypot fields** on authentication forms (hidden via CSS, never populated by real users) silently reject requests from bots that blindly fill all form fields — no error is shown; the submission is discarded server-side
-- Rate throttling (DRF `AnonRateThrottle` / `UserRateThrottle`) is applied to all endpoints, with tighter limits on the authentication and registration routes to resist credential-stuffing attacks
-
-### 7. Sensitive Data Exposure  *(OWASP A02)*
-
-- `SECRET_KEY` and all credentials are loaded from environment variables via `python-decouple` — no secrets appear in source code
-- The `DEBUG` flag is environment-controlled; in production it is `False`, suppressing stack traces in HTTP responses
-- `ALLOWED_HOSTS` is explicitly set via environment variable, preventing HTTP Host header injection
-- Scan job source code is stored in the database only for the authenticated user's own records and is never returned in list endpoints — only in the detail view of the owning user
-
-### 8. Tamper-Evident Audit Trail  *(OWASP A09)*
-
-- Every significant action (scan creation, threat update, record addition) produces an immutable `AuditEvent` record in the database
-- Client-side record integrity uses `window.crypto.subtle` SHA-256 hashing in a hash-chain structure — any record modification or deletion breaks the chain and is immediately detectable on the Records page
-
----
-
-## Platform Features
-
-### Smart Contract Scanner
-
-- Paste any Solidity source code (supports 0.4.x → 0.8.x via automatic compiler selection)
-- Four analysis engines run in parallel: **Slither** (80+ static detectors), **Mythril** (symbolic execution), **Echidna** (property-based fuzzing with auto-generated invariants), and a **Heuristic Analyzer** (6 regex-based logic-flaw checks)
-- Each tool runs in full process / container isolation — Slither and Mythril in dedicated Python venvs, Echidna in a hardened Docker container, heuristic in-process
-- Findings include SWC ID, severity (critical / high / medium / low / info), description, specific remediation, and originating tool
-- Aggregate risk score computed via weighted exponential saturation model (0–100 scale) with per-tool reliability multipliers
-- Results presented as a human-readable audit report with a risk grade (A–F), severity distribution, and expandable finding cards
-- Every finding mapped to the OWASP Smart Contract Top 10
-
-### Security Dashboard
-
-- KPI cards: contracts scanned, critical vulnerabilities, active threats, overall risk score
-- Scan activity chart and vulnerability distribution by severity
-
-### Threat Model
-
-- STRIDE-oriented threat catalogue (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, Elevation of Privilege)
-- Likelihood / impact scoring with derived risk scores and mitigation recommendations
-
-### Audit Log
-
-- Searchable, severity-tagged event timeline with actor, resource, and context per event
-
-### Tamper-Proof Records
-
-- SHA-256 hash chain with client-side chain verification and tampering detection
-
----
-
-## Research Context
-
-FinSec Guardian serves as a broader experimental foundation for future research in:
-
-- machine learning–assisted vulnerability classification  
-- anomaly detection using historical scan data  
-- adaptive cybersecurity risk scoring  
-- security analytics for financial systems  
-- trust frameworks for digital infrastructures  
-
-By storing findings over time, the platform supports future dataset creation, benchmarking, and longitudinal cybersecurity studies.
-
----
-
-## System Architecture
+## Architecture at a glance
 
 ```text
 Frontend (React + Vite)
         ↓
-REST API (Django + DRF)
+API (Django + DRF)
         ↓
-Scan Orchestrator
- ├── Slither
- ├── Mythril
- ├── Echidna
- ├── Heuristic Engine
- └── Etherscan Layer
+Scanner pipeline
+  ├─ Analysis engines
+  ├─ Normalisation
+  ├─ Risk scoring
+  └─ Persistence
         ↓
-Risk Scoring Engine
-        ↓
-PostgreSQL Persistence
-
+Domain analysis
+  ├─ FindingCorrelationService
+  ├─ CorrelationGraph
+  ├─ CorrelationComponent
+  └─ AttackPathService
 ```
-## Technology Stack
-```Frontend
-React 18
-Vite 5
-Tailwind CSS
-TanStack Query
-React Router
-Backend
-Python 3
-Django 5
-Django REST Framework
-JWT Authentication
-PostgreSQL
-Security Tooling
-  -Slither
-  -Mythril
-  -Echidna
-```
----
-## Quick Start
 
-### Clone Repository
+## Quick start
+
+### Backend
+
 ```bash
-git clone https://github.com/kefkio/finsec-guardian.git
-cd finsec
+cd finsec-guardian-api
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
 ```
 
-### Run Full Platform
+### Frontend
+
 ```bash
-chmod +x run.sh
-./run.sh
+cd finsec-guardian
+npm install
+npm run dev
 ```
 
----
 ### Access
-Frontend: http://localhost:8080
-Backend: http://localhost:8000
 
-### Screenshots / Demo Preview (Very Important)
-```
-## Interface Preview
+- Frontend: http://localhost:8080
+- Backend: http://localhost:8000
 
-| Dashboard | Scanner |
-|----------|---------|
-| (<img width="960" height="474" alt="WXWorkCapture_1777293840411" src="https://github.com/user-attachments/assets/add6adc0-96ad-4737-a8af-f17f043dda78" />
- | (image) |
+## Project status
 
-| Findings Report | Threat Model |
-|----------------|--------------|
-| (image) | (image) |
-```
-### Use Cases
-
-- Audit a Solidity contract before deployment
-- Compare findings across multiple security tools
-- Generate explainable risk reports for stakeholders
-- Benchmark smart contract vulnerabilities over time
-- Build datasets for ML-based security research
-
-## Project Status
-
-Current Version: Research Prototype (Active Development)
+Current status: active development prototype.
 
 Implemented:
 - Full-stack web platform
 - Multi-engine orchestration
-- Risk scoring engine
-- Persistent scan records
+- Risk scoring and reporting
+- Correlation-based attack-path discovery
 
-In Progress:
-- Advanced reporting
-- CI/CD integrations
-- Expanded engine coverage
+In progress:
+- Expanded reporting workflows
+- Additional risk assessment capabilities
+- Further hardening and CI integration
 
-###Roadmap
-## Roadmap
+## Documentation
 
-- Foundry integration
-- Semgrep smart contract rules
-- Machine learning classifier for findings
-- Historical anomaly detection
-- GitHub Actions CI scanner
-- Public API access
-- Expanded chain intelligence
+- [docs/README.md](docs/README.md) for the main documentation index
+- [finsec-guardian-api/README.md](finsec-guardian-api/README.md) for backend architecture and workflow details
 
-## Research Contributions
-## Research Contributions
+## Requirements
 
-FinSec Guardian explores:
-
-  1. Multi-engine vulnerability aggregation
-  2. Explainable deterministic risk scoring
-  3. Cross-tool normalization pipelines
-  4. Persistent security telemetry datasets
-  5. Future AI-assisted vulnerability prioritization
-
-## Installation Notes / Requirements
 - Node.js 18+
 - Python 3.10+
 - PostgreSQL
-- Docker (optional for Echidna)
+- Docker (optional for Echidna-based runs)
 
-Author Section
-## Author
-
-Kefa Waweru Kioge  
-Graduate Student (Fall 2026)  
 University of Michigan–Dearborn  
 
 Research Interests:

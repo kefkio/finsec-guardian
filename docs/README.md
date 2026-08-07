@@ -1,202 +1,58 @@
 # FinSec Guardian — Technical Documentation
 
-**Status:** Current  
-**Last Updated:** April 2026  
-**Platform:** Multi-Engine Smart Contract Security Analysis
+This directory collects the project documentation for the current FinSec Guardian build. The material is intentionally concise and focused on the architecture, workflow, and developer entry points that matter most right now.
 
----
+## What this build covers
 
-## About
+FinSec Guardian combines a React frontend, a Django REST API, and a domain analysis layer for correlated findings and attack-path discovery. The platform is designed to support multi-engine smart-contract analysis, deterministic risk scoring, and structured reporting.
 
-FinSec Guardian is a research-grade, multi-engine security intelligence platform for analyzing Solidity smart contracts prior to deployment. It integrates heterogeneous static, symbolic, fuzzing, heuristic, and on-chain analysis techniques into a unified pipeline that produces normalised vulnerability findings, deterministic risk scores, and tamper-evident audit records.
+## Documentation map
 
-The system is designed as a modular cybersecurity research platform, supporting extensible analysis workflows for blockchain security, with a forward-compatible architecture for financial systems and IoT security analytics integration.
+### System overview
 
-**Key capabilities:**
-- **Multi-engine analysis** — Slither (static), Mythril (symbolic), Echidna (fuzz), Heuristic (regex), Etherscan (on-chain)
-- **Normalised findings** — Unified schema across all engines with SWC IDs, severity, confidence, and remediation
-- **Deterministic risk scoring** — Weighted exponential saturation model with on-chain reputation adjustment
-- **Automated invariant generation** — Regex-based property synthesis for Echidna fuzzing
-- **Address-only scanning** — On-chain intelligence from contract address alone (no source code required)
-- **Tamper-evident audit trail** — SHA-256 hash-chain integrity records with STRIDE threat model
-- **Secure-by-design** — JWT authentication, CORS whitelist, input validation, OWASP Top 10 alignment
-
----
-
-## Documentation Map
-
-### System-Level
-
-| Document | Description |
-|----------|-------------|
-| [System Architecture](system-architecture.md) | High-level component model, layer architecture, deployment topology |
-| [Data Flow](data-flow.md) | Request-level walk-through of every data transformation |
-| [Design Decisions](design-decisions.md) | Rationale for major architectural choices |
-| [Threat Model](threat-model.md) | STRIDE-based threat analysis, attack surfaces, mitigations |
+| Document | Purpose |
+| --- | --- |
+| [system-architecture.md](system-architecture.md) | High-level component model and deployment view |
+| [data-flow.md](data-flow.md) | Request and processing flow across the stack |
+| [design-decisions.md](design-decisions.md) | Key architectural decisions and rationale |
+| [threat-model.md](threat-model.md) | Threat model and mitigation focus areas |
 
 ### Backend
 
-| Document | Description |
-|----------|-------------|
-| [Overview](backend/overview.md) | Django application structure, service layer organisation |
-| [Architecture](backend/architecture.md) | Deep-dive into service classes, models, and ViewSets |
-| [Data Model](backend/data-model.md) | ORM schema: ScanJob, Finding, ThreatRecord, AuditEvent, etc. |
-| [Analyzers](backend/analyzers.md) | Individual engine details: Slither, Mythril, Echidna, Heuristic, Etherscan |
-| [Orchestrator](backend/orchestrator.md) | `ScanOrchestrator` pipeline coordination, Etherscan layer, graceful degradation |
-| [Scan Pipeline](backend/scan-pipeline.md) | End-to-end lifecycle: source-code and address-only scan flows |
-| [Risk Scoring](backend/risk-scoring.md) | Weighted composite scoring formula, on-chain adjustment, verdict classification |
-| [Invariants](backend/invariants.md) | Automated invariant generation and injection for Echidna fuzzing |
+| Document | Purpose |
+| --- | --- |
+| [backend/overview.md](backend/overview.md) | Backend structure and service organisation |
+| [backend/architecture.md](backend/architecture.md) | Core services, models, and API responsibilities |
+| [backend/analyzers.md](backend/analyzers.md) | Details on the supported analysis engines |
+| [backend/orchestrator.md](backend/orchestrator.md) | Scan orchestration and execution flow |
+| [backend/scan-pipeline.md](backend/scan-pipeline.md) | Source-code and address-based scan lifecycle |
+| [backend/risk-scoring.md](backend/risk-scoring.md) | Risk scoring model and interpretation |
+| [backend/invariants.md](backend/invariants.md) | Echidna invariant generation and injection |
 
 ### Frontend
 
-| Document | Description |
-|----------|-------------|
-| [Overview](frontend/overview.md) | React application architecture, features, project structure, development workflow |
-| [UI System](frontend/ui-system.md) | Component library, data fetching, styling system, patterns |
-| [Security Architecture](frontend/security-architecture.md) | JWT management, route protection, CSP, input validation, OWASP alignment |
+| Document | Purpose |
+| --- | --- |
+| [frontend/overview.md](frontend/overview.md) | Frontend structure and user-facing workflows |
+| [frontend/ui-system.md](frontend/ui-system.md) | UI patterns and styling system |
+| [frontend/security-architecture.md](frontend/security-architecture.md) | Frontend security controls and guidance |
 
----
+## Current focus areas
 
-## Technology Stack
+The current documentation is aligned with the active implementation:
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, Vite 5, Tailwind CSS, shadcn/ui (Radix), TanStack Query v5, React Router v6, Recharts, Lucide |
-| **API** | Django 5, Django REST Framework 3.17, SimpleJWT, django-cors-headers |
-| **Database** | PostgreSQL (psycopg2-binary) |
-| **Analysis** | Slither (Python subprocess), Mythril (Python subprocess), Echidna (Docker), Heuristic (in-process) |
-| **On-Chain** | Etherscan API (rate-limited HTTP client) |
-| **Testing** | Vitest, React Testing Library, Playwright, Django TestCase |
+- Multi-engine scanning and normalisation
+- Risk scoring and reporting
+- Correlation-based attack-path discovery in the domain layer
+- Secure-by-design application structure and deployment concerns
 
----
+## Suggested reading order
 
-## Architecture Overview
+1. Start with [system-architecture.md](system-architecture.md)
+2. Review [backend/architecture.md](backend/architecture.md) for the implementation shape
+3. Use [backend/scan-pipeline.md](backend/scan-pipeline.md) for workflow details
+4. Refer to [frontend/overview.md](frontend/overview.md) for the UI side of the platform
 
-```
-┌───────────────────────────────────────────────────────────────────────┐
-│                     React Frontend (Vite 5 + Tailwind)               │
-│  Dashboard │ Scanner │ ScanDetail │ Threats │ Audit │ Records        │
-│  ─── On-Chain Intelligence Panel (Etherscan data) ───                │
-└──────────────────────────────┬────────────────────────────────────────┘
-                               │ HTTPS + JWT Bearer tokens
-                               ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│                   Django REST Framework API Gateway                   │
-│  JWT Auth │ Input Validation │ CORS │ Rate Limiting │ Audit Log      │
-└──────────────────────────────┬────────────────────────────────────────┘
-                               │
-         ┌─────────────────────┼─────────────────────┐
-         ▼                     ▼                     ▼
-┌─────────────────┐  ┌─────────────────┐  ┌──────────────────────┐
-│  Analysis       │  │  On-Chain       │  │  Support Services    │
-│  Engine Tier    │  │  Intelligence   │  │  Compilation         │
-│  Slither        │  │  Client         │  │  File Processing     │
-│  Mythril        │  │  Fetcher        │  │  Pattern Detection   │
-│  Echidna        │  │  Analyzer       │  │  Invariant Gen       │
-│  Heuristic      │  │  Reputation     │  │                      │
-└────────┬────────┘  └────────┬────────┘  └──────────┬───────────┘
-         └────────────────────┼──────────────────────┘
-                              ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│  Orchestrator → Normalizer → RiskScorer → Persistence                │
-└──────────────────────────────┬────────────────────────────────────────┘
-                               ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│  PostgreSQL: ScanJob │ Finding │ ThreatRecord │ AuditEvent           │
-└───────────────────────────────────────────────────────────────────────┘
-```
+## Notes
 
----
-
-## Analysis Pipeline
-
-The orchestrator runs engines sequentially with graceful degradation:
-
-| Layer | Engine | Timeout | Required? |
-|-------|--------|---------|-----------|
-| L1 | Slither (static analysis) | 120 s | Yes — failure aborts |
-| L2 | Mythril (symbolic execution) | 60 s | No — skip on error |
-| L3 | Echidna (property fuzzing) | 120 s | No — skip on error |
-| L4 | Heuristic (regex rules) | < 1 s | Yes — always runs |
-| L5 | Etherscan (on-chain intelligence) | 30 s | No — only when address provided |
-| L6 | Normalisation | < 100 ms | Yes |
-| L7 | Risk scoring | < 10 ms | Yes |
-| L8 | Persistence | < 50 ms | Yes (job-based only) |
-
----
-
-## Risk Scoring Model
-
-Per-finding weighted scores with exponential saturation:
-
-$$S_i = W_{\text{severity}} \times W_{\text{tool}} \times \frac{\text{confidence}}{100}$$
-
-$$\text{Risk} = 100 \times \left(1 - e^{-0.08 \times S_{\text{total}}}\right)$$
-
-- **Critical floor:** Any critical finding → minimum score 80
-- **On-chain adjustment:** Etherscan reputation ±15 max
-- **Verdicts:** CRITICAL RISK (≥85) → HIGH (≥70) → MEDIUM (≥50) → LOW (≥25) → MINIMAL (<25)
-
-See [Risk Scoring](backend/risk-scoring.md) for the complete algorithm.
-
----
-
-## Scan Modes
-
-| Mode | Input | Engines | Persistence |
-|------|-------|---------|-------------|
-| **Source-code scan** | Solidity source (+ optional address) | All 5 engines | ScanJob created |
-| **Address-only scan** | Contract address only | Etherscan only | ScanJob created |
-| **Trigger scan** | Source or address | All applicable | No persistence |
-
-See [Scan Pipeline](backend/scan-pipeline.md) for flow diagrams.
-
----
-
-## Research Contributions
-
-1. **Multi-engine integration** — First system normalising findings across Slither, Mythril, Echidna, and custom heuristics
-2. **Deterministic risk scoring** — Explainable weighted model combining severity, tool reliability, confidence, and on-chain reputation
-3. **Automated invariant generation** — Regex-based property synthesis for differential fuzzing with Echidna
-4. **On-chain intelligence layer** — Live Etherscan data enriches static findings with behavioral context
-5. **Secure-by-design** — STRIDE threat model, OWASP Top 10 compliance, tamper-evident hash chains
-
----
-
-## Quick Start
-
-### Backend
-
-```bash
-cd finsec-guardian-api
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
-```
-
-### Frontend
-
-```bash
-cd finsec-guardian
-npm install
-npm run dev
-```
-
-### Environment Variables
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `SECRET_KEY` | Yes | Django secret key |
-| `DEBUG` | No | Debug mode (default: False) |
-| `ALLOWED_HOSTS` | Yes | Comma-separated hostnames |
-| `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated origins |
-| `ETHERSCAN_API_KEY` | No | Enables on-chain intelligence layer |
-| `ETHERSCAN_BASE_URL` | No | Override for testnets/alt chains |
-| `ECHIDNA_DOCKER_IMAGE` | No | Echidna Docker image tag |
-| `VITE_API_URL` | No | Frontend → backend API URL |
-
----
-
-**Document Version:** 2.0  
-**Last Updated:** April 2026
+This documentation set is intended to stay practical and maintainable. If a section becomes overly detailed or duplicates another document, it should be folded into the nearest relevant guide rather than expanded further.

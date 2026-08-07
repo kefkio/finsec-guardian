@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+
+try:
+    from datetime import UTC
+except ImportError:  # pragma: no cover - Python < 3.11 fallback
+    from datetime import timezone
+
+    UTC = timezone.utc
 from typing import Callable, ClassVar
 
 from scanner.domain.entities import Entity
