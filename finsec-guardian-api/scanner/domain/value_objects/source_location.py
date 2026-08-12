@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from functools import total_ordering
-from typing import Optional
 
 from scanner.domain.exceptions.domain import DomainValidationError
 
@@ -9,10 +10,8 @@ from scanner.domain.exceptions.domain import DomainValidationError
 @dataclass(frozen=True, slots=True)
 class SourceLocation:
     """
-    Represents the physical location of a finding within a source file.
-
-    A SourceLocation is a Domain Value Object. It is immutable and
-    completely defined by its values rather than an identity.
+    Immutable Value Object representing the physical location of a
+    finding within a source file.
 
     Examples:
         Token.sol:15
@@ -23,47 +22,89 @@ class SourceLocation:
 
     filename: str
     line: int
-    column: Optional[int] = None
-    end_line: Optional[int] = None
-    end_column: Optional[int] = None
+    column: int | None = None
+    end_line: int | None = None
+    end_column: int | None = None
 
     def __post_init__(self) -> None:
         """
-        Validates the integrity of the source location.
-
-        Raises:
-            DomainValidationError:
-                If any invariant is violated.
+        Validate the integrity of the source location.
         """
-        if not self.filename.strip():
+
+        # ==========================================================
+        # Filename
+        # ==========================================================
+
+        if not isinstance(self.filename, str):
+            raise DomainValidationError(
+                "Filename must be a string."
+            )
+
+        filename = self.filename.strip()
+
+        if not filename:
             raise DomainValidationError(
                 "Filename cannot be empty."
             )
 
-        if self.line < 1:
-            raise DomainValidationError(
-                "Line number must be greater than zero."
+        object.__setattr__(
+            self,
+            "filename",
+            filename,
+        )
+
+        # ==========================================================
+        # Line
+        # ==========================================================
+
+        self._validate_positive_integer(
+            self.line,
+            "Line number",
+        )
+
+        # ==========================================================
+        # Column
+        # ==========================================================
+
+        if self.column is not None:
+            self._validate_positive_integer(
+                self.column,
+                "Column number",
             )
 
-        if self.column is not None and self.column < 1:
-            raise DomainValidationError(
-                "Column number must be greater than zero."
+        # ==========================================================
+        # End Line
+        # ==========================================================
+
+        if self.end_line is not None:
+            self._validate_positive_integer(
+                self.end_line,
+                "End line",
             )
 
-        if self.end_line is not None and self.end_line < self.line:
-            raise DomainValidationError(
-                "End line cannot be less than the starting line."
+            if self.end_line < self.line:
+                raise DomainValidationError(
+                    "End line cannot be less than the starting line."
+                )
+
+        # ==========================================================
+        # End Column
+        # ==========================================================
+
+        if self.end_column is not None:
+            self._validate_positive_integer(
+                self.end_column,
+                "End column",
             )
 
-        if self.end_column is not None and self.end_column < 1:
-            raise DomainValidationError(
-                "End column must be greater than zero."
-            )
+            if self.column is None:
+                raise DomainValidationError(
+                    "end_column requires column to be set."
+                )
 
-        if self.end_column is not None and self.column is None:
-            raise DomainValidationError(
-                "end_column requires column to be set."
-            )
+        # ==========================================================
+        # Same-line Column Ordering
+        # ==========================================================
 
         if (
             self.end_column is not None
@@ -75,21 +116,64 @@ class SourceLocation:
             and self.end_column < self.column
         ):
             raise DomainValidationError(
-                "End column cannot be less than the starting column "
-                "on the same line."
+                "End column cannot be less than the starting "
+                "column on the same line."
             )
+
+    # ==========================================================
+    # Validation Helpers
+    # ==========================================================
+
+    @staticmethod
+    def _validate_positive_integer(
+        value: object,
+        field_name: str,
+    ) -> None:
+        """
+        Validate a positive integer value.
+
+        bool is explicitly rejected because bool is a subclass
+        of int in Python.
+        """
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise DomainValidationError(
+                f"{field_name} must be an integer."
+            )
+
+        if value < 1:
+            raise DomainValidationError(
+                f"{field_name} must be greater than zero."
+            )
+
+    # ==========================================================
+    # Availability
+    # ==========================================================
 
     @property
     def has_column(self) -> bool:
         """
-        Returns True if column information is available.
+        Return True when column information is available.
         """
         return self.column is not None
 
     @property
+    def has_end_position(self) -> bool:
+        """
+        Return True when an explicit end position is available.
+        """
+        return (
+            self.end_line is not None
+            or self.end_column is not None
+        )
+
+    # ==========================================================
+    # Range Properties
+    # ==========================================================
+
+    @property
     def is_single_line(self) -> bool:
         """
-        Returns True if the location spans only one line.
+        Return True when the location spans one source line.
         """
         return (
             self.end_line is None
@@ -99,21 +183,27 @@ class SourceLocation:
     @property
     def is_range(self) -> bool:
         """
-        Returns True if this location spans multiple lines.
+        Return True when the location spans multiple lines.
         """
         return not self.is_single_line
 
     @property
     def effective_end_line(self) -> int:
         """
-        Returns the effective ending line.
+        Return the effective ending line.
+
+        When no explicit end line is supplied, the starting
+        line is treated as the ending line.
         """
         return self.end_line or self.line
 
     @property
-    def effective_end_column(self) -> Optional[int]:
+    def effective_end_column(self) -> int | None:
         """
-        Returns the effective ending column.
+        Return the effective ending column.
+
+        When no explicit end column is supplied, the starting
+        column is used when available.
         """
         if self.column is None:
             return None
@@ -123,19 +213,36 @@ class SourceLocation:
     @property
     def span(self) -> int:
         """
-        Returns the number of lines covered by this location.
+        Return the number of source lines covered.
         """
-        return self.effective_end_line - self.line + 1
+        return (
+            self.effective_end_line
+            - self.line
+            + 1
+        )
+
+    # ==========================================================
+    # Domain Queries
+    # ==========================================================
 
     def contains(
         self,
         line: int,
-        column: Optional[int] = None,
+        column: int | None = None,
     ) -> bool:
         """
-        Returns True if the supplied line (and optional column)
-        lies within this source location.
+        Return True if the supplied position lies within
+        this source location.
         """
+        if not isinstance(line, int) or isinstance(line, bool):
+            return False
+
+        if column is not None and (
+            not isinstance(column, int)
+            or isinstance(column, bool)
+        ):
+            return False
+
         if not (
             self.line
             <= line
@@ -164,9 +271,13 @@ class SourceLocation:
 
         return True
 
+    # ==========================================================
+    # Presentation
+    # ==========================================================
+
     def display(self) -> str:
         """
-        Returns a human-readable representation.
+        Return a human-readable representation.
 
         Examples:
             Token.sol:15
@@ -175,38 +286,41 @@ class SourceLocation:
             Token.sol:15:8-20:4
         """
         if self.end_line is None:
-
             if self.column is None:
-                return (
-                    f"{self.filename}:{self.line}"
-                )
+                return f"{self.filename}:{self.line}"
 
             return (
                 f"{self.filename}:"
-                f"{self.line}:{self.column}"
+                f"{self.line}:"
+                f"{self.column}"
             )
 
         if self.column is None:
             return (
                 f"{self.filename}:"
-                f"{self.line}-{self.end_line}"
+                f"{self.line}-"
+                f"{self.end_line}"
             )
 
         return (
             f"{self.filename}:"
-            f"{self.line}:{self.column}-"
+            f"{self.line}:"
+            f"{self.column}-"
             f"{self.end_line}:"
             f"{self.effective_end_column}"
         )
 
+    # ==========================================================
+    # Ordering
+    # ==========================================================
+
     def _sort_key(self) -> tuple[str, int, int]:
         """
-        Returns the natural ordering key.
+        Return the natural ordering key:
 
-        Source locations are ordered by:
-            1. Filename
-            2. Line
-            3. Column
+            1. filename
+            2. line
+            3. column
         """
         return (
             self.filename,
@@ -214,20 +328,21 @@ class SourceLocation:
             self.column or 0,
         )
 
-    def __lt__(self, other: "SourceLocation") -> bool:
+    def __lt__(
+        self,
+        other: object,
+    ) -> bool:
         """
-        Compares two SourceLocation objects.
+        Compare source locations deterministically.
         """
         if not isinstance(other, SourceLocation):
             return NotImplemented
 
-        return (
-            self._sort_key()
-            < other._sort_key()
-        )
+        return self._sort_key() < other._sort_key()
+
+    # ==========================================================
+    # String Representation
+    # ==========================================================
 
     def __str__(self) -> str:
-        """
-        Returns the display representation.
-        """
         return self.display()
