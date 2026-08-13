@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-
-from django.utils import timezone
+from datetime import datetime, timezone
 
 from scanner.domain.entities.entity import Entity
 from scanner.domain.exceptions import DomainValidationError
@@ -36,11 +34,11 @@ class SmartContract(Entity):
     source_hash: str | None = None
 
     created_at: datetime = field(
-        default_factory=timezone.now
+        default_factory= lambda: datetime.now(timezone.utc)
     )
 
     updated_at: datetime = field(
-        default_factory=timezone.now
+        default_factory= lambda: datetime.now(timezone.utc)
     )
 
     def __post_init__(self) -> None:
@@ -83,7 +81,7 @@ class SmartContract(Entity):
             )
 
         self.contract_name = new_name
-        self.updated_at = timezone.now()
+        self.updated_at = datetime.now(timezone.utc)
 
     def update_source(self, source_code: str) -> None:
         """
@@ -105,7 +103,7 @@ class SmartContract(Entity):
         # hash or fingerprint is no longer valid.
         self.source_hash = None
 
-        self.updated_at = timezone.now()
+        self.updated_at = datetime.now(timezone.utc)
 
     def update_hash(self, source_hash: str) -> None:
         """
@@ -122,7 +120,7 @@ class SmartContract(Entity):
             )
 
         self.source_hash = source_hash
-        self.updated_at = timezone.now()
+        self.updated_at = datetime.now(timezone.utc)
 
     # ==========================================================
     # Derived Properties

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
 
-from django.utils import timezone
+from datetime import datetime, timezone
+
 
 from scanner.domain.entities import Entity
 from scanner.domain.entities.finding import Finding
@@ -62,7 +62,7 @@ class Scan(Entity):
             )
 
         self.status = ScanStatus.RUNNING
-        self.started_at = timezone.now()
+        self.started_at = datetime.now(timezone.utc)
 
     def complete(self) -> None:
         if self.status is not ScanStatus.RUNNING:
@@ -71,7 +71,7 @@ class Scan(Entity):
             )
 
         self.status = ScanStatus.COMPLETED
-        self.completed_at = timezone.now()
+        self.completed_at = datetime.now(timezone.utc)
 
     def fail(self) -> None:
         """
@@ -83,7 +83,7 @@ class Scan(Entity):
         )
 
         self.status = ScanStatus.FAILED
-        self.completed_at = timezone.now()
+        self.completed_at = datetime.now(timezone.utc)
 
     def cancel(self) -> None:
         if self.status not in (
@@ -96,7 +96,7 @@ class Scan(Entity):
             )
 
         self.status = ScanStatus.CANCELLED
-        self.completed_at = timezone.now()
+        self.completed_at = datetime.now(timezone.utc)
 
 
 
@@ -270,7 +270,7 @@ class Scan(Entity):
             raise DomainValidationError(
                 "Scan has not started."
             )
-        end = self.completed_at or timezone.now()
+        end = self.completed_at or datetime.now(timezone.utc)
         return (end - self.started_at).total_seconds()
 
     @property
