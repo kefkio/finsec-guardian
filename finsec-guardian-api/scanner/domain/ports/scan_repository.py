@@ -1,48 +1,72 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from uuid import UUID
+
+from scanner.domain.entities.scan import Scan
+from scanner.domain.enums import ScanStatus
 
 
 class ScanRepository(ABC):
     """
-    Contract for persisting and retrieving ScanJobs.
+    Port for persisting and retrieving Scan aggregates.
+
+    Infrastructure implementations may use Django ORM, SQL, or another
+    persistence mechanism. The domain and application layers depend only
+    on this abstraction.
     """
 
     @abstractmethod
-    def save(self, scan):
-        """Persist a ScanJob."""
-        pass
+    def save(self, scan: Scan) -> Scan:
+        """
+        Persist a Scan aggregate and return the persisted aggregate.
+        """
+        ...
 
     @abstractmethod
-    def get_by_id(self, scan_id):
-        """Retrieve a ScanJob by its ID."""
-        pass
+    def get_by_id(self, scan_id: UUID) -> Scan | None:
+        """
+        Retrieve a Scan by its domain identifier.
+        """
+        ...
 
     @abstractmethod
-    def get_by_hash(self, source_code_hash):
-        """Retrieve a ScanJob by its source code hash."""
-        pass
+    def get_by_hash(self, source_hash: str) -> Scan | None:
+        """
+        Retrieve a Scan by the source hash of its SmartContract.
+        """
+        ...
 
     @abstractmethod
-    def get_by_status(self, status):
-        """Retrieve ScanJobs by their status."""
-        pass
+    def get_by_status(
+        self,
+        status: ScanStatus,
+    ) -> tuple[Scan, ...]:
+        """
+        Retrieve scans matching the supplied lifecycle status.
+        """
+        ...
 
     @abstractmethod
-    def get_by_user(self, user_id):
-        """Retrieve ScanJobs by the user who initiated them."""
-        pass
+    def update(self, scan: Scan) -> Scan:
+        """
+        Persist changes to an existing Scan aggregate.
+        """
+        ...
 
     @abstractmethod
-    def update(self, scan):
-        """Update an existing ScanJob."""
-        pass
-
-        
-    @abstractmethod
-    def delete(self, scan_id):
-        """Delete a ScanJob."""
-        pass
+    def delete(self, scan_id: UUID) -> None:
+        """
+        Delete a Scan by its domain identifier.
+        """
+        ...
 
     @abstractmethod
-    def list_recent(self, limit=10):
-        """Return the most recent ScanJobs."""
-        pass
+    def list_recent(
+        self,
+        limit: int = 10,
+    ) -> tuple[Scan, ...]:
+        """
+        Return the most recently persisted scans.
+        """
+        ...
