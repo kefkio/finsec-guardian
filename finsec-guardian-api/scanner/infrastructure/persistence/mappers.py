@@ -14,10 +14,15 @@ from scanner.domain.value_objects.source_location import SourceLocation
 from scanner.domain.value_objects.vulnerability_signature import (
     VulnerabilitySignature,
 )
-from scanner.infrastructure.persistence.models_v2 import (
-    FindingRecord,
-    ScanRecord,
-)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Import model classes only for type checking to avoid triggering
+    # Django model registration at module import time.
+    from scanner.infrastructure.persistence.models_v2 import (
+        FindingRecord,
+        ScanRecord,
+    )
 
 
 class PersistenceMapper:

@@ -14,12 +14,16 @@ from scanner.infrastructure.analyzers.heuristic_analyzer import (
 from scanner.infrastructure.analyzers.slither_analyzer import (
     SlitherAnalyzer,
 )
-from scanner.infrastructure.persistence.repositories import (
-    DjangoScanRepository,
-)
+# Import persistence repository lazily inside fixtures to avoid importing
+# Django models at module import time (which can trigger AppRegistryNotReady
+# during pytest collection).
 from scanner.domain.enums import (
     AnalyzerType,
     ScanStatus,
+)
+
+from scanner.infrastructure.analyzers.mythril_analyzer import (
+    MythrilAnalyzer,
 )
 
 pytestmark = pytest.mark.django_db
@@ -59,10 +63,17 @@ def analysis_request() -> AnalysisRequest:
 
 @pytest.fixture
 def pipeline() -> ScanPipeline:
+    # Import repository here so Django model modules are only imported
+    # after pytest-django has initialized the Django app registry.
+    from scanner.infrastructure.persistence.repositories import (
+        DjangoScanRepository,
+    )
+
     return ScanPipeline(
         analyzers=(
             SlitherAnalyzer(),
             HeuristicAnalyzer(),
+            MythrilAnalyzer(),
         ),
         repository=DjangoScanRepository(),
     )
@@ -207,36 +218,86 @@ async def test_real_analyzers_merge_findings(
 
     assert AnalyzerType.SLITHER in analyzers
     assert AnalyzerType.HEURISTIC in analyzers
+    
 
-    @pytest.mark.asyncio
-    async def test_persisted_findings_preserve_analyzer_identity(
-        self,
-        pipeline: ScanPipeline,
-        analysis_request: AnalysisRequest,
-    ) -> None:
-        scan = await pipeline.execute(
-            analysis_request,
-        )
+@pytest.mark.asyncio
+async def test_real_analyzers_merge_findings_from_all_engines(
+    pipeline: ScanPipeline,
+    analysis_request: AnalysisRequest,
+) -> None:
+    scan = await pipeline.execute(
+        analysis_request,
+    )
 
-        repository = DjangoScanRepository()
+    assert scan.status is ScanStatus.COMPLETED
 
-        restored = await asyncio.to_thread(
-            repository.get_by_id,
-            scan.id,
-        )
+    analyzers = {
+        finding.analyzer
+        for finding in scan.findings
+    }
 
-        assert restored is not None
+    assert AnalyzerType.SLITHER in analyzers
+    assert AnalyzerType.HEURISTIC in analyzers
+    assert AnalyzerType.MYTHRIL in analyzers
 
-        original_analyzers = {
-            finding.analyzer
-            for finding in scan.findings
-        }
+    
 
-        restored_analyzers = {
-            finding.analyzer
-            for finding in restored.findings
-        }
+# Persisted findings identity tests (module-level)
+@pytest.mark.asyncio
+async def test_persisted_findings_preserve_analyzer_identity(
+    pipeline: ScanPipeline,
+    analysis_request: AnalysisRequest,
+) -> None:
+    scan = await pipeline.execute(analysis_request)
 
-        assert restored_analyzers == (
-            original_analyzers
-        )
+    repository = DjangoScanRepository()
+
+    restored = await asyncio.to_thread(
+        repository.get_by_id,
+        scan.id,
+    )
+
+    assert restored is not None
+
+    original_analyzers = {
+        finding.analyzer
+        for finding in scan.findings
+    }
+
+    restored_analyzers = {
+        finding.analyzer
+        for finding in restored.findings
+    }
+
+    assert restored_analyzers == original_analyzers
+
+
+@pytest.mark.asyncio
+async def test_persisted_findings_preserve_analyzer_identity_for_all_engines(
+    pipeline: ScanPipeline,
+    analysis_request: AnalysisRequest,
+) -> None:
+    scan = await pipeline.execute(analysis_request)
+
+    repository = DjangoScanRepository()
+
+    restored = await asyncio.to_thread(
+        repository.get_by_id,
+        scan.id,
+    )
+
+    assert restored is not None
+
+    original_analyzers = {
+        finding.analyzer
+        for finding in scan.findings
+    }
+
+    restored_analyzers = {
+        finding.analyzer
+        for finding in restored.findings
+    }
+
+    assert restored_analyzers == original_analyzers
+
+
