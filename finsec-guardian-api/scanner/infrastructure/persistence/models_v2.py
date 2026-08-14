@@ -209,7 +209,6 @@ class FindingRecord(models.Model):
 
     fingerprint = models.CharField(
         max_length=128,
-        unique=True,
         db_index=True,
     )
 
@@ -328,6 +327,12 @@ class FindingRecord(models.Model):
             models.Index(
                 fields=["analyzer", "-created_at"],
                 name="fndg_v2_analyzer_created_idx",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["scan", "fingerprint"],
+                name="finding_v2_scan_fp_unique",
             ),
         ]
 

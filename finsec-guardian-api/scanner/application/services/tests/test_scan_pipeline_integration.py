@@ -8,13 +8,19 @@ from scanner.application.services.scan_pipeline import ScanPipeline
 from scanner.domain.entities.scan import Scan
 from scanner.domain.enums import ScanStatus
 from scanner.domain.value_objects.analysis_request import AnalysisRequest
+from scanner.infrastructure.analyzers.heuristic_analyzer import (
+    HeuristicAnalyzer,
+)
 from scanner.infrastructure.analyzers.slither_analyzer import (
     SlitherAnalyzer,
 )
 from scanner.infrastructure.persistence.repositories import (
     DjangoScanRepository,
 )
-
+from scanner.domain.enums import (
+    AnalyzerType,
+    ScanStatus,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -54,7 +60,10 @@ def analysis_request() -> AnalysisRequest:
 @pytest.fixture
 def pipeline() -> ScanPipeline:
     return ScanPipeline(
-        analyzer=SlitherAnalyzer(),
+        analyzers=(
+            SlitherAnalyzer(),
+            HeuristicAnalyzer(),
+        ),
         repository=DjangoScanRepository(),
     )
 
@@ -180,3 +189,54 @@ class TestScanPipelineIntegration:
 
         assert persisted is not None
         assert persisted.id == scan.id
+
+@pytest.mark.asyncio
+async def test_real_analyzers_merge_findings(
+    pipeline: ScanPipeline,
+    analysis_request: AnalysisRequest,
+) -> None:
+    scan = await pipeline.execute(
+        analysis_request,
+    )
+
+    assert scan.status is ScanStatus.COMPLETED
+
+    analyzers = {
+        finding.analyzer
+        for finding in scan.findings }
+
+    assert AnalyzerType.SLITHER in analyzers
+    assert AnalyzerType.HEURISTIC in analyzers
+
+    @pytest.mark.asyncio
+    async def test_persisted_findings_preserve_analyzer_identity(
+        self,
+        pipeline: ScanPipeline,
+        analysis_request: AnalysisRequest,
+    ) -> None:
+        scan = await pipeline.execute(
+            analysis_request,
+        )
+
+        repository = DjangoScanRepository()
+
+        restored = await asyncio.to_thread(
+            repository.get_by_id,
+            scan.id,
+        )
+
+        assert restored is not None
+
+        original_analyzers = {
+            finding.analyzer
+            for finding in scan.findings
+        }
+
+        restored_analyzers = {
+            finding.analyzer
+            for finding in restored.findings
+        }
+
+        assert restored_analyzers == (
+            original_analyzers
+        )

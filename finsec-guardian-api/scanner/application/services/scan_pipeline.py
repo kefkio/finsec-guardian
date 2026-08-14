@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 
 from scanner.domain.entities.scan import Scan
 from scanner.domain.entities.smart_contract import SmartContract
@@ -11,19 +12,39 @@ from scanner.domain.value_objects.analysis_request import AnalysisRequest
 
 class ScanPipeline:
     """
-    Application service coordinating one V2 security scan.
+    Application service coordinating a V2 security scan.
 
-    Analyzer execution is asynchronous. Repository operations are
-    synchronous and therefore execute in worker threads so Django ORM
-    access never occurs directly inside the async event loop.
+    The pipeline is responsible for:
+        - creating the Scan aggregate
+        - progressing the scan lifecycle
+        - executing the configured analyzers
+        - merging analyzer findings into the aggregate
+        - persisting lifecycle transitions
+
+    Analyzer execution is asynchronous.
+
+    Repository operations are synchronous, so they are executed through
+    asyncio.to_thread() to keep synchronous Django ORM access outside the
+    event-loop thread.
     """
 
     def __init__(
         self,
-        analyzer: AnalyzerPort,
+        analyzers: Sequence[AnalyzerPort],
         repository: ScanRepository,
     ) -> None:
-        self._analyzer = analyzer
+        if not analyzers:
+            raise ValueError(
+                "At least one analyzer must be configured."
+            )
+
+        for analyzer in analyzers:
+            if not isinstance(analyzer, AnalyzerPort):
+                raise TypeError(
+                    "All analyzers must implement AnalyzerPort."
+                )
+
+        self._analyzers = tuple(analyzers)
         self._repository = repository
 
     async def execute(
@@ -31,7 +52,26 @@ class ScanPipeline:
         request: AnalysisRequest,
     ) -> Scan:
         """
-        Execute a scan from creation through persistence.
+        Execute the complete scan lifecycle.
+
+        Lifecycle:
+
+            PENDING
+              ↓
+            QUEUED
+              ↓
+            RUNNING
+              ↓
+        analyzer 1
+              ↓
+        analyzer 2
+              ↓
+            findings merged
+              ↓
+          COMPLETED
+
+        If any analyzer raises an exception, the aggregate transitions
+        to FAILED and the exception is re-raised.
         """
         self._validate_request(request)
 
@@ -59,13 +99,14 @@ class ScanPipeline:
                 scan,
             )
 
-            findings = await self._analyzer.analyze(
-                request,
-            )
+            for analyzer in self._analyzers:
+                findings = await analyzer.analyze(
+                    request,
+                )
 
-            scan.merge_findings(
-                list(findings),
-            )
+                scan.merge_findings(
+                    list(findings),
+                )
 
             scan.complete()
 
@@ -85,6 +126,13 @@ class ScanPipeline:
             )
 
             raise
+
+    @property
+    def analyzers(self) -> tuple[AnalyzerPort, ...]:
+        """
+        Return the configured analyzers as an immutable tuple.
+        """
+        return self._analyzers
 
     @staticmethod
     def _validate_request(
